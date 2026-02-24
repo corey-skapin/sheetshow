@@ -3,29 +3,35 @@
 # Enable on a fresh clone with: git config core.hooksPath .githooks
 set -euo pipefail
 
-# Locate dart — check PATH, then common Windows install locations.
-if command -v dart &>/dev/null; then
-  DART=dart
-elif command -v flutter &>/dev/null; then
-  DART="flutter pub run dart"
+# Locate flutter/dart — check PATH, then common Windows install locations.
+FLUTTER=""
+if command -v flutter &>/dev/null; then
+  FLUTTER=flutter
 else
   for candidate in \
-    "$HOME/flutter/bin/dart" \
-    "/c/Users/$USERNAME/flutter/bin/dart" \
-    "/c/flutter/bin/dart" \
-    "/c/tools/flutter/bin/dart"; do
-    if [ -x "$candidate" ]; then DART="$candidate"; break; fi
+    "$HOME/flutter/bin/flutter" \
+    "/c/Users/$USERNAME/flutter/bin/flutter" \
+    "/c/flutter/bin/flutter" \
+    "/c/tools/flutter/bin/flutter"; do
+    if [ -x "$candidate" ]; then FLUTTER="$candidate"; break; fi
   done
 fi
 
-if [ -z "${DART:-}" ]; then
-  echo "⚠ dart not found — skipping format check. Install Flutter and re-run." >&2
+if [ -z "${FLUTTER:-}" ]; then
+  echo "⚠ flutter not found — skipping checks. Install Flutter and re-run." >&2
   exit 0
 fi
+
+DART="${FLUTTER%flutter}dart"
 
 echo "▶ dart format check (client)..."
 cd client
 $DART format --set-exit-if-changed lib/ test/
+cd ..
+
+echo "▶ flutter analyze (client)..."
+cd client
+$FLUTTER analyze --fatal-infos --fatal-warnings
 cd ..
 
 echo "✓ All pre-commit checks passed."

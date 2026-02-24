@@ -10,7 +10,7 @@ void main() {
   // In-memory store to back the mock platform channel.
   final store = <String, String?>{};
 
-  void _setUpMockChannel() {
+  void setUpMockChannel() {
     store.clear();
     // flutter_secure_storage uses this method channel on all platforms.
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -38,7 +38,7 @@ void main() {
   late TokenStorageService service;
 
   setUp(() {
-    _setUpMockChannel();
+    setUpMockChannel();
     service = TokenStorageService(const FlutterSecureStorage());
   });
 
