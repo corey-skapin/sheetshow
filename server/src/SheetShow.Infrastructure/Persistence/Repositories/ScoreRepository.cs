@@ -56,7 +56,8 @@ public sealed class ScoreRepository : IScoreRepository
     /// <inheritdoc/>
     public async Task<Score> UpdateAsync(Score score, CancellationToken cancellationToken = default)
     {
-        var existing = await _db.Scores.FindAsync(new object[] { score.Id }, cancellationToken)
+        var existing = await _db.Scores
+            .FirstOrDefaultAsync(s => s.Id == score.Id && s.UserId == score.UserId, cancellationToken)
             ?? throw new KeyNotFoundException($"Score {score.Id} not found.");
 
         if (existing.Version != score.Version)

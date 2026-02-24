@@ -17,7 +17,25 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
   location: location
   sku: { name: 'Basic' }
-  properties: { adminUserEnabled: true }
+  properties: { adminUserEnabled: false }
+}
+
+// Managed identity for the Container App to pull images from ACR
+resource containerAppIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${prefix}-api-identity'
+  location: location
+}
+
+// Grant the managed identity the AcrPull role on the ACR
+var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(acr.id, containerAppIdentity.id, acrPullRoleId)
+  scope: acr
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
+    principalId: containerAppIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 // Container Apps Environment
@@ -31,6 +49,12 @@ resource containerAppsEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: '${prefix}-api'
   location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${containerAppIdentity.id}': {}
+    }
+  }
   properties: {
     managedEnvironmentId: containerAppsEnv.id
     configuration: {
@@ -41,14 +65,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
       registries: [
         {
           server: acr.properties.loginServer
-          username: acr.listCredentials().username
-          passwordSecretRef: 'acr-password'
-        }
-      ]
-      secrets: [
-        {
-          name: 'acr-password'
-          value: acr.listCredentials().passwords[0].value
+          identity: containerAppIdentity.id
         }
       ]
     }

@@ -159,6 +159,7 @@ namespace SheetShow.Infrastructure.Persistence.Migrations
                     EntityId = table.Column<Guid>(nullable: false),
                     Operation = table.Column<string>(maxLength: 20, nullable: false),
                     PayloadJson = table.Column<string>(nullable: true),
+                    Version = table.Column<int>(nullable: false, defaultValue: 0),
                     AppliedAt = table.Column<DateTimeOffset>(nullable: false),
                 },
                 constraints: table =>

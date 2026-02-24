@@ -60,6 +60,11 @@ public sealed class FoldersController : ControllerBase
             return this.NotFound();
         }
 
+        if (request.ClientVersion != folder.Version)
+        {
+            return this.Conflict(new { message = "Version conflict: the folder has been modified by another client." });
+        }
+
         folder.Name = request.Name;
         folder.ParentFolderId = request.ParentFolderId;
         folder.UpdatedAt = DateTimeOffset.UtcNow;

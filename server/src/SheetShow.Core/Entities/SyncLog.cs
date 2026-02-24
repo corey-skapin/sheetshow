@@ -21,5 +21,7 @@ public class SyncLog
 
     public string? PayloadJson { get; set; }
 
+    public int Version { get; set; }
+
     public DateTimeOffset AppliedAt { get; set; }
 }

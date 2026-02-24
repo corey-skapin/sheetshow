@@ -12,9 +12,13 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
   AnnotationService(this._repo) : super(null);
 
   final AnnotationRepository _repo;
+  String _currentScoreId = '';
+  int _currentPageNumber = 0;
 
   /// Load annotations for a page.
   Future<void> loadPage(String scoreId, int pageNumber) async {
+    _currentScoreId = scoreId;
+    _currentPageNumber = pageNumber;
     final layer = await _repo.getLayer(scoreId, pageNumber);
     state = layer;
   }
@@ -60,8 +64,8 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
     if (current == null) {
       return AnnotationLayer(
         id: const Uuid().v4(),
-        scoreId: '',
-        pageNumber: 0,
+        scoreId: _currentScoreId,
+        pageNumber: _currentPageNumber,
         strokes: strokes,
         updatedAt: now,
         syncState: SyncState.pendingUpdate,

@@ -19,11 +19,18 @@ public sealed class ConflictDetectionService
             return new SyncOperationResult(operation.OperationId, "accepted");
         }
 
-        // Server has already applied a newer version
-        // clientVersion == serverVersion means intentional overwrite (post-resolution) — accept
-        // clientVersion < serverVersion means conflict
-        // We use operation.ClientVersion as a proxy for the client's known server version
-        // Real implementation would compare against entity.Version from DB
-        return new SyncOperationResult(operation.OperationId, "accepted");
+        // clientVersion == serverVersion: the client is aware of the latest server version — accept
+        // clientVersion < serverVersion: server has a newer version than the client knew about — conflict
+        if (operation.ClientVersion >= existingLog.Version)
+        {
+            return new SyncOperationResult(operation.OperationId, "accepted");
+        }
+
+        return new SyncOperationResult(
+            operation.OperationId,
+            "conflict",
+            ConflictType: "version_mismatch",
+            ServerPayload: existingLog.PayloadJson,
+            ServerVersion: existingLog.Version);
     }
 }

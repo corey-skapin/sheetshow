@@ -2,12 +2,23 @@
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
+using System.Text;
 using System.Threading.RateLimiting;
+using Azure.Storage.Blobs;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using SheetShow.Api.Middleware;
+using SheetShow.Core.Interfaces;
+using SheetShow.Core.Services;
+using SheetShow.Infrastructure.Azure;
+using SheetShow.Infrastructure.Email;
+using SheetShow.Infrastructure.Identity;
 using SheetShow.Infrastructure.Persistence;
+using SheetShow.Infrastructure.Persistence.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +28,53 @@ builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configurati
 // Database
 builder.Services.AddDbContext<ApplicationDbContext>(opts =>
     opts.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Identity
+builder.Services.AddIdentity<AppUser, IdentityRole>(opts =>
+{
+    opts.Password.RequiredLength = 8;
+    opts.Password.RequireDigit = true;
+    opts.Password.RequireUppercase = false;
+    opts.Password.RequireNonAlphanumeric = false;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
+
+// JWT authentication
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtSecret = jwtSection["SecretKey"] ?? throw new InvalidOperationException("JWT:SecretKey is not configured.");
+builder.Services.AddAuthentication(opts =>
+{
+    opts.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    opts.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(opts =>
+{
+    opts.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        ValidateIssuer = true,
+        ValidIssuer = jwtSection["Issuer"],
+        ValidateAudience = true,
+        ValidAudience = jwtSection["Audience"],
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero,
+    };
+});
+builder.Services.AddAuthorization();
+
+// Application services
+builder.Services.AddScoped<IScoreRepository, ScoreRepository>();
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<ConflictDetectionService>();
+builder.Services.AddScoped<SyncService>();
+
+// Azure Blob Storage
+builder.Services.AddSingleton(_ =>
+    new BlobServiceClient(builder.Configuration.GetConnectionString("AzureStorage") ?? "UseDevelopmentStorage=true"));
+builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
 
 // Rate limiting
 builder.Services.AddRateLimiter(opts =>
@@ -50,12 +108,16 @@ builder.Services.AddRateLimiter(opts =>
     opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
-// CORS
+// CORS — allow any localhost origin (all ports) for development, explicit origins for production
 builder.Services.AddCors(opts =>
     opts.AddDefaultPolicy(policy =>
-        policy.WithOrigins("https://localhost:*")
-              .AllowAnyHeader()
-              .AllowAnyMethod()));
+        policy.SetIsOriginAllowed(origin =>
+        {
+            var uri = new Uri(origin);
+            return uri.Host == "localhost" || uri.Host == "127.0.0.1";
+        })
+        .AllowAnyHeader()
+        .AllowAnyMethod()));
 
 // Controllers + Swagger
 builder.Services.AddControllers();

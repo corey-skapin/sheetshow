@@ -68,6 +68,11 @@ public sealed class SetListsController : ControllerBase
             return this.NotFound();
         }
 
+        if (request.ClientVersion != setList.Version)
+        {
+            return this.Conflict(new { message = "Version conflict: the set list has been modified by another client." });
+        }
+
         setList.Name = request.Name;
         setList.UpdatedAt = DateTimeOffset.UtcNow;
         setList.Version++;

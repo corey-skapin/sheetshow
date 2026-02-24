@@ -60,8 +60,33 @@ jobs:
 
       - name: Coverage gate (>= 80%)
         run: |
-          pip install lcov_cobertura
-          # Parse coverage and enforce threshold
+          COVERAGE_FILE=$(find server/coverage -name 'coverage.cobertura.xml' -print -quit)
+          if [ -z "$COVERAGE_FILE" ]; then
+            echo "Coverage file not found under server/coverage. Failing coverage gate."
+            exit 1
+          fi
+          echo "Using coverage report: $COVERAGE_FILE"
+          COVERAGE_PERCENT=$(python3 - "$COVERAGE_FILE" << 'PY'
+          import sys, xml.etree.ElementTree as ET
+          path = sys.argv[1]
+          tree = ET.parse(path)
+          root = tree.getroot()
+          line_rate = root.get("line-rate")
+          try:
+              value = float(line_rate)
+          except (TypeError, ValueError):
+              print("0")
+              sys.exit(0)
+          print(int(round(value * 100)))
+          PY
+          )
+          echo "Total line coverage: ${COVERAGE_PERCENT}%"
+          THRESHOLD=80
+          if [ "$COVERAGE_PERCENT" -lt "$THRESHOLD" ]; then
+            echo "Coverage gate failed: ${COVERAGE_PERCENT}% < ${THRESHOLD}%"
+            exit 1
+          fi
+          echo "Coverage gate passed: ${COVERAGE_PERCENT}% >= ${THRESHOLD}%"
 
       - name: Docker build
         working-directory: server
