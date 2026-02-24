@@ -76,8 +76,8 @@ jobs:
               value = float(line_rate)
           except (TypeError, ValueError):
               print("0")
-              sys.exit(0)
-          print(int(round(value * 100)))
+          else:
+              print(int(round(value * 100)))
           PY
           )
           echo "Total line coverage: ${COVERAGE_PERCENT}%"
