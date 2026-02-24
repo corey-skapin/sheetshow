@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Pre-commit checks — run automatically before every commit.
+# Enable on a fresh clone with: git config core.hooksPath .githooks
+set -euo pipefail
+
+# Locate flutter/dart — check PATH, then common Windows install locations.
+FLUTTER=""
+if command -v flutter &>/dev/null; then
+  FLUTTER=flutter
+else
+  for candidate in \
+    "$HOME/flutter/bin/flutter" \
+    "/c/Users/$USERNAME/flutter/bin/flutter" \
+    "/c/flutter/bin/flutter" \
+    "/c/tools/flutter/bin/flutter"; do
+    if [ -x "$candidate" ]; then FLUTTER="$candidate"; break; fi
+  done
+fi
+
+if [ -z "${FLUTTER:-}" ]; then
+  echo "⚠ flutter not found — skipping checks. Install Flutter and re-run." >&2
+  exit 0
+fi
+
+DART="${FLUTTER%flutter}dart"
+
+echo "▶ dart format check (client)..."
+cd client
+$DART format --set-exit-if-changed lib/ test/
+cd ..
+
+echo "▶ flutter analyze (client)..."
+cd client
+$FLUTTER analyze --fatal-infos --fatal-warnings
+cd ..
+
+echo "✓ All pre-commit checks passed."

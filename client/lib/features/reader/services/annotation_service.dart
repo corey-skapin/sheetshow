@@ -26,7 +26,7 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
   /// Add a stroke to the current page.
   Future<void> addStroke(InkStroke stroke) async {
     final current = state;
-    final strokes = [...(current?.strokes ?? []), stroke];
+    final strokes = <InkStroke>[...(current?.strokes ?? []), stroke];
     final updated = _updateLayer(current, strokes, stroke.id);
     state = updated;
     await _persist(updated);

@@ -151,7 +151,7 @@ void main() {
         final stroke = InkStroke.fromJson(json);
         expect(stroke.id, 's2');
         expect(stroke.tool, AnnotationTool.pen);
-        expect(stroke.color.value, Colors.blue.value);
+        expect(stroke.color, const Color(0xff2196f3));
         expect(stroke.strokeWidth, 3.0);
         expect(stroke.opacity, 0.8);
         expect(stroke.points, hasLength(1));
