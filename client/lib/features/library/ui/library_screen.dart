@@ -6,6 +6,7 @@ import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 import 'package:sheetshow/features/library/services/import_service.dart';
+import 'package:sheetshow/features/library/services/search_service.dart';
 import 'package:sheetshow/features/library/ui/score_card.dart';
 import 'package:sheetshow/features/library/ui/folder_tree.dart';
 import 'package:sheetshow/features/library/ui/score_detail_sheet.dart';
@@ -22,6 +23,7 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   String? _selectedFolderId;
+  String _searchQuery = '';
   final _searchController = TextEditingController();
   bool _isImporting = false;
 
@@ -52,7 +54,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   prefixIcon: Icon(Icons.search),
                   isDense: true,
                 ),
-                onChanged: (_) {},
+                onChanged: (value) => setState(() => _searchQuery = value),
               ),
             ),
           ),
@@ -72,6 +74,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               selectedFolderId: _selectedFolderId,
               onFolderSelected: (id) => setState(() {
                 _selectedFolderId = id;
+                _searchQuery = '';
                 _searchController.clear();
               }),
             ),
@@ -80,9 +83,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           // Score grid
           Expanded(
             child: StreamBuilder<List<ScoreModel>>(
-              stream: ref
-                  .watch(scoreRepositoryProvider)
-                  .watchAll(folderId: _selectedFolderId),
+              stream: _searchQuery.trim().isNotEmpty
+                  ? ref
+                      .watch(searchServiceProvider)
+                      .searchStream(_searchQuery)
+                  : ref
+                      .watch(scoreRepositoryProvider)
+                      .watchAll(folderId: _selectedFolderId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
