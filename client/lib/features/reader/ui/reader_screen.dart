@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sheetshow/core/theme/app_colors.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
+import 'package:sheetshow/features/reader/models/reader_args.dart';
 import 'package:sheetshow/features/reader/ui/annotation_overlay.dart';
 import 'package:sheetshow/features/reader/ui/annotation_toolbar.dart';
 import 'package:sheetshow/features/reader/ui/pdf_page_view.dart';
@@ -15,10 +17,18 @@ class ReaderScreen extends ConsumerStatefulWidget {
     super.key,
     required this.scoreId,
     this.score,
+    this.scores = const [],
+    this.currentIndex = 0,
   });
 
   final String scoreId;
   final ScoreModel? score;
+
+  /// Ordered list of scores in the current view, used for prev/next navigation.
+  final List<ScoreModel> scores;
+
+  /// Index of this score within [scores].
+  final int currentIndex;
 
   @override
   ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
@@ -42,6 +52,19 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (mounted) setState(() => _score = score);
   }
 
+  void _navigateTo(int index) {
+    if (index < 0 || index >= widget.scores.length) return;
+    final targetScore = widget.scores[index];
+    context.pushReplacement(
+      '/reader/${targetScore.id}',
+      extra: ReaderArgs(
+        score: targetScore,
+        scores: widget.scores,
+        currentIndex: index,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final score = _score;
@@ -51,6 +74,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       );
     }
 
+    final hasPrevious = widget.scores.isNotEmpty && widget.currentIndex > 0;
+    final hasNext = widget.scores.isNotEmpty &&
+        widget.currentIndex < widget.scores.length - 1;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -58,6 +85,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         foregroundColor: Colors.white,
         title: Text(score.title),
         actions: [
+          if (widget.scores.isNotEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios),
+              tooltip: 'Previous',
+              onPressed: hasPrevious
+                  ? () => _navigateTo(widget.currentIndex - 1)
+                  : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.arrow_forward_ios),
+              tooltip: 'Next',
+              onPressed:
+                  hasNext ? () => _navigateTo(widget.currentIndex + 1) : null,
+            ),
+          ],
           IconButton(
             icon: Icon(
               _annotationMode ? Icons.edit_off : Icons.edit,

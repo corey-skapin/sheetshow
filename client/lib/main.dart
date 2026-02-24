@@ -9,8 +9,8 @@ import 'package:sheetshow/features/auth/services/token_storage_service.dart';
 import 'package:sheetshow/features/auth/ui/forgot_password_screen.dart';
 import 'package:sheetshow/features/auth/ui/login_screen.dart';
 import 'package:sheetshow/features/auth/ui/register_screen.dart';
-import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/ui/library_screen.dart';
+import 'package:sheetshow/features/reader/models/reader_args.dart';
 import 'package:sheetshow/features/reader/ui/reader_screen.dart';
 import 'package:sheetshow/features/setlists/ui/performance_mode_screen.dart';
 import 'package:sheetshow/features/setlists/ui/set_list_builder.dart';
@@ -30,9 +30,14 @@ final _router = GoRouter(
       path: '/reader/:scoreId',
       name: 'reader',
       builder: (context, state) {
-        final score = state.extra as ScoreModel?;
+        final args = state.extra as ReaderArgs?;
         final scoreId = state.pathParameters['scoreId']!;
-        return ReaderScreen(scoreId: scoreId, score: score);
+        return ReaderScreen(
+          scoreId: scoreId,
+          score: args?.score,
+          scores: args?.scores ?? const [],
+          currentIndex: args?.currentIndex ?? 0,
+        );
       },
     ),
     GoRoute(
