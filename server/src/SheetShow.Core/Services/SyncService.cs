@@ -1,19 +1,24 @@
-using SheetShow.Core.Entities;
-using SheetShow.Core.Constants;
+// <copyright file="SyncService.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace SheetShow.Core.Services;
+
+using SheetShow.Core.Constants;
+using SheetShow.Core.Entities;
 
 /// <summary>Server-side sync orchestration: handles pull and push operations.</summary>
 public sealed class SyncService
 {
-    private readonly ConflictDetectionService _conflictDetection;
+    private readonly ConflictDetectionService conflictDetection;
 
     public SyncService(ConflictDetectionService conflictDetection)
     {
-        _conflictDetection = conflictDetection;
+        this.conflictDetection = conflictDetection;
     }
 
     /// <summary>Process a batch push of operations from a client device.</summary>
+    /// <returns></returns>
     public SyncPushResult ProcessPush(IReadOnlyList<SyncOperation> operations, IReadOnlyList<SyncLog> existingLogs)
     {
         var results = new List<SyncOperationResult>();
@@ -23,7 +28,7 @@ public sealed class SyncService
             var existingLog = existingLogs.FirstOrDefault(l =>
                 l.EntityId == op.EntityId && l.EntityType == op.EntityType);
 
-            var result = _conflictDetection.Evaluate(op, existingLog);
+            var result = this.conflictDetection.Evaluate(op, existingLog);
             results.Add(result);
         }
 

@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:isolate';
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
+import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -70,8 +69,13 @@ Future<void> _renderThumbnail(_ThumbnailParams params) async {
     height: (page.height * scale).round(),
   );
 
-  final bytes = await image.createImageIfNotAvailable()
-      .then((img) => img.toByteData(format: ImageByteFormat.png));
+  if (image == null) {
+    await doc.dispose();
+    return;
+  }
+
+  final uiImage = await image.createImage();
+  final bytes = await uiImage.toByteData(format: ImageByteFormat.png);
 
   if (bytes != null) {
     await File(params.destPath)

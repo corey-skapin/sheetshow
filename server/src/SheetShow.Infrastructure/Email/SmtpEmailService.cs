@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using SheetShow.Core.Interfaces;
 
 namespace SheetShow.Infrastructure.Email;

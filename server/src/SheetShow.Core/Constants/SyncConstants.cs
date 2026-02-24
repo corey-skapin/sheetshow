@@ -1,3 +1,7 @@
+// <copyright file="SyncConstants.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
 namespace SheetShow.Core.Constants;
 
 /// <summary>Sync engine constants.</summary>

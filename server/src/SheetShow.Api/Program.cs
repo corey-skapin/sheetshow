@@ -1,9 +1,13 @@
+// <copyright file="Program.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using SheetShow.Api.Middleware;
 using SheetShow.Infrastructure.Persistence;
-using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,7 +70,7 @@ builder.Services.AddSwaggerGen(c =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Description = "Enter your JWT Bearer token"
+        Description = "Enter your JWT Bearer token",
     });
 });
 
@@ -92,4 +96,6 @@ app.MapControllers();
 app.Run();
 
 // For WebApplicationFactory in integration tests
-public partial class Program { }
+public partial class Program
+{
+}

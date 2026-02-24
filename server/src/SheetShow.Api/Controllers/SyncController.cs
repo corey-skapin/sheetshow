@@ -1,3 +1,10 @@
+// <copyright file="SyncController.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
+namespace SheetShow.Api.Controllers;
+
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -6,9 +13,6 @@ using SheetShow.Core.Constants;
 using SheetShow.Core.Entities;
 using SheetShow.Core.Services;
 using SheetShow.Infrastructure.Persistence;
-using System.Security.Claims;
-
-namespace SheetShow.Api.Controllers;
 
 /// <summary>Sync push and pull endpoints for offline-first client synchronisation.</summary>
 [ApiController]
@@ -17,25 +21,27 @@ namespace SheetShow.Api.Controllers;
 [EnableRateLimiting("default")]
 public sealed class SyncController : ControllerBase
 {
-    private readonly ApplicationDbContext _db;
-    private readonly SyncService _syncService;
-    private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+    private readonly ApplicationDbContext db;
+    private readonly SyncService syncService;
+
+    private string CurrentUserId => this.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     public SyncController(ApplicationDbContext db, SyncService syncService)
     {
-        _db = db;
-        _syncService = syncService;
+        this.db = db;
+        this.syncService = syncService;
     }
 
     /// <summary>POST /api/v1/sync/pull — fetch changes since a given timestamp.</summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     [HttpPost("pull")]
     public async Task<IActionResult> Pull([FromBody] SyncPullRequest request, CancellationToken ct)
     {
         var since = request.Since ?? DateTimeOffset.MinValue;
 
-        var changes = await _db.SyncLogs
+        var changes = await this.db.SyncLogs
             .Where(l =>
-                l.UserId == CurrentUserId &&
+                l.UserId == this.CurrentUserId &&
                 l.DeviceId != request.DeviceId &&
                 l.AppliedAt > since)
             .OrderBy(l => l.AppliedAt)
@@ -44,7 +50,7 @@ public sealed class SyncController : ControllerBase
 
         var hasMore = changes.Count == SyncConstants.MaxBatchSize;
 
-        return Ok(new
+        return this.Ok(new
         {
             changes = changes.Select(l => new
             {
@@ -52,46 +58,49 @@ public sealed class SyncController : ControllerBase
                 l.EntityId,
                 l.Operation,
                 l.PayloadJson,
-                l.AppliedAt
+                l.AppliedAt,
             }),
             hasMore,
-            serverTime = DateTimeOffset.UtcNow
+            serverTime = DateTimeOffset.UtcNow,
         });
     }
 
     /// <summary>POST /api/v1/sync/push — push a batch of local operations to the server.</summary>
+    /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
     [HttpPost("push")]
     public async Task<IActionResult> Push([FromBody] SyncPushRequest request, CancellationToken ct)
     {
-        var existingLogs = await _db.SyncLogs
-            .Where(l => l.UserId == CurrentUserId)
+        var existingLogs = await this.db.SyncLogs
+            .Where(l => l.UserId == this.CurrentUserId)
             .ToListAsync(ct);
 
-        var result = _syncService.ProcessPush(request.Operations, existingLogs);
+        var result = this.syncService.ProcessPush(request.Operations, existingLogs);
 
         // Persist accepted operations to sync_log
         foreach (var (op, res) in request.Operations.Zip(result.Results))
         {
             if (res.Status == "accepted")
             {
-                _db.SyncLogs.Add(new SyncLog
+                this.db.SyncLogs.Add(new SyncLog
                 {
                     Id = Guid.NewGuid(),
-                    UserId = CurrentUserId,
+                    UserId = this.CurrentUserId,
                     DeviceId = request.DeviceId,
                     EntityType = op.EntityType,
                     EntityId = op.EntityId,
                     Operation = op.Operation,
                     PayloadJson = op.PayloadJson,
-                    AppliedAt = DateTimeOffset.UtcNow
+                    AppliedAt = DateTimeOffset.UtcNow,
                 });
             }
         }
-        await _db.SaveChangesAsync(ct);
 
-        return Ok(result);
+        await this.db.SaveChangesAsync(ct);
+
+        return this.Ok(result);
     }
 }
 
 public record SyncPullRequest(string DeviceId, DateTimeOffset? Since, IReadOnlyList<string>? EntityTypes);
+
 public record SyncPushRequest(string DeviceId, IReadOnlyList<SyncOperation> Operations);

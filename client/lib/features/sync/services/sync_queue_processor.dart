@@ -80,7 +80,7 @@ class SyncQueueProcessor {
     return deduplicated.values.take(kSyncMaxBatchSize).toList();
   }
 
-  SyncQueueEntry _mapRow(SyncQueue row) => SyncQueueEntry(
+  SyncQueueEntry _mapRow(SyncQueueData row) => SyncQueueEntry(
         id: row.id,
         entityType: row.entityType,
         entityId: row.entityId,

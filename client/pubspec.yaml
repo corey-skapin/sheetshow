@@ -12,7 +12,7 @@ dependencies:
   flutter:
     sdk: flutter
   # PDF rendering (PDFium-based)
-  pdfrx: ^2.0.0
+  pdfrx: ^1.0.101
   # Local database (SQLite + FTS5)
   drift: ^2.0.0
   drift_flutter: ^0.1.0

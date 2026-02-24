@@ -33,7 +33,6 @@ class _PdfPageViewState extends State<PdfPageView> {
 
   @override
   void dispose() {
-    _controller.dispose();
     super.dispose();
   }
 
@@ -45,12 +44,13 @@ class _PdfPageViewState extends State<PdfPageView> {
           widget.filePath,
           controller: _controller,
           params: PdfViewerParams(
-            layoutPages: (pages, template) {
-              _totalPages = pages.length;
-              return template;
+            onDocumentChanged: (doc) {
+              if (doc != null && mounted) {
+                setState(() => _totalPages = doc.pages.length);
+              }
             },
             onPageChanged: (page) {
-              if (mounted) {
+              if (mounted && page != null) {
                 setState(() => _currentPage = page);
                 widget.onPageChanged?.call(page, _totalPages);
               }

@@ -1,30 +1,34 @@
-using Microsoft.AspNetCore.Mvc;
-using System.Net;
-using System.Text.Json;
+// <copyright file="GlobalExceptionMiddleware.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace SheetShow.Api.Middleware;
+
+using System.Net;
+using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 
 /// <summary>Catches all unhandled exceptions and maps them to RFC 7807 ProblemDetails responses.</summary>
 public sealed class GlobalExceptionMiddleware
 {
-    private readonly RequestDelegate _next;
-    private readonly ILogger<GlobalExceptionMiddleware> _logger;
+    private readonly RequestDelegate next;
+    private readonly ILogger<GlobalExceptionMiddleware> logger;
 
     public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
     {
-        _next = next;
-        _logger = logger;
+        this.next = next;
+        this.logger = logger;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
         try
         {
-            await _next(context);
+            await this.next(context);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
+            this.logger.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
             await WriteProblemDetailsAsync(context, ex);
         }
     }
@@ -36,7 +40,7 @@ public sealed class GlobalExceptionMiddleware
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Unauthorized", "https://httpstatuses.com/401"),
             ArgumentException or InvalidOperationException => (HttpStatusCode.BadRequest, "Bad Request", "https://httpstatuses.com/400"),
             KeyNotFoundException => (HttpStatusCode.NotFound, "Not Found", "https://httpstatuses.com/404"),
-            _ => (HttpStatusCode.InternalServerError, "Internal Server Error", "https://httpstatuses.com/500")
+            _ => (HttpStatusCode.InternalServerError, "Internal Server Error", "https://httpstatuses.com/500"),
         };
 
         var problem = new ProblemDetails
@@ -45,7 +49,7 @@ public sealed class GlobalExceptionMiddleware
             Title = title,
             Status = (int)status,
             Detail = exception.Message,
-            Extensions = { ["traceId"] = context.TraceIdentifier }
+            Extensions = { ["traceId"] = context.TraceIdentifier },
         };
 
         context.Response.StatusCode = (int)status;

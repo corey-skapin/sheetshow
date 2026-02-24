@@ -1,12 +1,16 @@
+// <copyright file="SetListsController.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
+namespace SheetShow.Api.Controllers;
+
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SheetShow.Core.Entities;
 using SheetShow.Infrastructure.Persistence;
-using System.Security.Claims;
-
-namespace SheetShow.Api.Controllers;
 
 /// <summary>CRUD endpoints for set lists.</summary>
 [ApiController]
@@ -15,19 +19,20 @@ namespace SheetShow.Api.Controllers;
 [EnableRateLimiting("default")]
 public sealed class SetListsController : ControllerBase
 {
-    private readonly ApplicationDbContext _db;
-    private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private readonly ApplicationDbContext db;
 
-    public SetListsController(ApplicationDbContext db) => _db = db;
+    private Guid CurrentUserId => Guid.Parse(this.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    public SetListsController(ApplicationDbContext db) => this.db = db;
 
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
-        var setLists = await _db.SetLists
+        var setLists = await this.db.SetLists
             .Include(sl => sl.Entries)
-            .Where(sl => sl.UserId == CurrentUserId.ToString())
+            .Where(sl => sl.UserId == this.CurrentUserId.ToString())
             .ToListAsync(ct);
-        return Ok(setLists);
+        return this.Ok(setLists);
     }
 
     [HttpPost]
@@ -36,7 +41,7 @@ public sealed class SetListsController : ControllerBase
         var setList = new SetList
         {
             Id = Guid.NewGuid(),
-            UserId = CurrentUserId.ToString(),
+            UserId = this.CurrentUserId.ToString(),
             Name = request.Name,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -45,51 +50,58 @@ public sealed class SetListsController : ControllerBase
                 Id = Guid.NewGuid(),
                 ScoreId = scoreId,
                 OrderIndex = i
-            }).ToList()
+            }).ToList(),
         };
-        _db.SetLists.Add(setList);
-        await _db.SaveChangesAsync(ct);
-        return CreatedAtAction(nameof(GetAll), null, setList);
+        this.db.SetLists.Add(setList);
+        await this.db.SaveChangesAsync(ct);
+        return this.CreatedAtAction(nameof(this.GetAll), null, setList);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateSetListRequest request, CancellationToken ct)
     {
-        var setList = await _db.SetLists
+        var setList = await this.db.SetLists
             .Include(sl => sl.Entries)
-            .FirstOrDefaultAsync(sl => sl.Id == id && sl.UserId == CurrentUserId.ToString(), ct);
-        if (setList is null) return NotFound();
+            .FirstOrDefaultAsync(sl => sl.Id == id && sl.UserId == this.CurrentUserId.ToString(), ct);
+        if (setList is null)
+        {
+            return this.NotFound();
+        }
 
         setList.Name = request.Name;
         setList.UpdatedAt = DateTimeOffset.UtcNow;
         setList.Version++;
 
         // Replace entries
-        _db.SetListEntries.RemoveRange(setList.Entries);
+        this.db.SetListEntries.RemoveRange(setList.Entries);
         setList.Entries = request.Entries.Select((scoreId, i) => new SetListEntry
         {
             Id = Guid.NewGuid(),
             SetListId = id,
             ScoreId = scoreId,
-            OrderIndex = i
+            OrderIndex = i,
         }).ToList();
 
-        await _db.SaveChangesAsync(ct);
-        return Ok(setList);
+        await this.db.SaveChangesAsync(ct);
+        return this.Ok(setList);
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var setList = await _db.SetLists.FirstOrDefaultAsync(sl => sl.Id == id && sl.UserId == CurrentUserId.ToString(), ct);
-        if (setList is null) return NotFound();
+        var setList = await this.db.SetLists.FirstOrDefaultAsync(sl => sl.Id == id && sl.UserId == this.CurrentUserId.ToString(), ct);
+        if (setList is null)
+        {
+            return this.NotFound();
+        }
 
         setList.IsDeleted = true;
         setList.DeletedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        return NoContent();
+        await this.db.SaveChangesAsync(ct);
+        return this.NoContent();
     }
 }
 
 public record CreateSetListRequest(string Name, List<Guid> Entries);
+
 public record UpdateSetListRequest(string Name, List<Guid> Entries, int ClientVersion);
