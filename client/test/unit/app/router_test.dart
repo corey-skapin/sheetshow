@@ -5,9 +5,8 @@ import 'package:sheetshow/main.dart';
 
 void main() {
   group('goRouterProvider', () {
-    setUpAll(TestWidgetsFlutterBinding.ensureInitialized);
-
-    test('creates a GoRouter instance within a ProviderScope', () {
+    testWidgets('creates a GoRouter instance within a ProviderScope',
+        (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
@@ -16,7 +15,8 @@ void main() {
       expect(router, isA<GoRouter>());
     });
 
-    test('returns the same instance on repeated reads', () {
+    testWidgets('returns the same instance on repeated reads',
+        (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
