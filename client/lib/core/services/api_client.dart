@@ -106,7 +106,14 @@ class ApiClient {
 
 /// Riverpod provider for [ApiClient].
 /// Token storage is injected lazily to avoid circular dependency with AuthService.
+/// Override [tokenLoaderProvider] in a [ProviderScope] (e.g., after login) to
+/// supply a real token loader backed by [TokenStorageService].
+final tokenLoaderProvider = Provider<Future<String?> Function()>((ref) {
+  return () async => null;
+});
+
+/// Riverpod provider for [ApiClient].
 final apiClientProvider = Provider<ApiClient>((ref) {
-  // Token loader will be updated by AuthService after login.
-  return ApiClient(tokenStorage: () async => null);
+  final tokenLoader = ref.watch(tokenLoaderProvider);
+  return ApiClient(tokenStorage: tokenLoader);
 });

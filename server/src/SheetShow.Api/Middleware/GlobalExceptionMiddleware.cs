@@ -43,12 +43,15 @@ public sealed class GlobalExceptionMiddleware
             _ => (HttpStatusCode.InternalServerError, "Internal Server Error", "https://httpstatuses.com/500"),
         };
 
+        var isServerError = status == HttpStatusCode.InternalServerError;
+        var detail = isServerError ? "An unexpected error occurred. Please try again later." : exception.Message;
+
         var problem = new ProblemDetails
         {
             Type = type,
             Title = title,
             Status = (int)status,
-            Detail = exception.Message,
+            Detail = detail,
             Extensions = { ["traceId"] = context.TraceIdentifier },
         };
 

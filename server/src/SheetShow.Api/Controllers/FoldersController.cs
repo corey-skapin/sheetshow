@@ -60,6 +60,11 @@ public sealed class FoldersController : ControllerBase
             return this.NotFound();
         }
 
+        if (request.ClientVersion != folder.Version)
+        {
+            return this.Conflict(new { message = "Conflict: client version is out of date.", serverVersion = folder.Version });
+        }
+
         folder.Name = request.Name;
         folder.ParentFolderId = request.ParentFolderId;
         folder.UpdatedAt = DateTimeOffset.UtcNow;

@@ -39,11 +39,18 @@ public sealed class SyncController : ControllerBase
     {
         var since = request.Since ?? DateTimeOffset.MinValue;
 
-        var changes = await this.db.SyncLogs
+        var query = this.db.SyncLogs
             .Where(l =>
                 l.UserId == this.CurrentUserId &&
                 l.DeviceId != request.DeviceId &&
-                l.AppliedAt > since)
+                l.AppliedAt > since);
+
+        if (request.EntityTypes is { Count: > 0 })
+        {
+            query = query.Where(l => request.EntityTypes.Contains(l.EntityType));
+        }
+
+        var changes = await query
             .OrderBy(l => l.AppliedAt)
             .Take(SyncConstants.MaxBatchSize)
             .ToListAsync(ct);
@@ -70,8 +77,14 @@ public sealed class SyncController : ControllerBase
     [HttpPost("push")]
     public async Task<IActionResult> Push([FromBody] SyncPushRequest request, CancellationToken ct)
     {
+        if (request.Operations.Count > SyncConstants.MaxBatchSize)
+        {
+            return this.BadRequest(new { message = $"Batch too large. Maximum allowed: {SyncConstants.MaxBatchSize}." });
+        }
+
+        var operationEntityIds = request.Operations.Select(o => o.EntityId).ToHashSet();
         var existingLogs = await this.db.SyncLogs
-            .Where(l => l.UserId == this.CurrentUserId)
+            .Where(l => l.UserId == this.CurrentUserId && operationEntityIds.Contains(l.EntityId))
             .ToListAsync(ct);
 
         var result = this.syncService.ProcessPush(request.Operations, existingLogs);

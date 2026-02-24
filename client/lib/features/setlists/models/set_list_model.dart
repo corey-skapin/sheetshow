@@ -54,6 +54,7 @@ class SetListModel {
         'id': id,
         'name': name,
         'entries': entries.map((e) => e.toJson()).toList(),
+        'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'cloudId': cloudId,
         'serverVersion': serverVersion,
@@ -70,8 +71,8 @@ class SetListModel {
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
             DateTime.now(),
         syncState: SyncState.synced,
-        cloudId: json['id'] as String?,
-        serverVersion: json['version'] as int? ?? 0,
+        cloudId: json['cloudId'] as String?,
+        serverVersion: json['serverVersion'] as int? ?? 0,
       );
 
   @override
