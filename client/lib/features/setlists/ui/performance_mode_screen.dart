@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
@@ -8,6 +9,10 @@ import 'package:sheetshow/features/reader/ui/reader_screen.dart';
 import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
 
 // T063: PerformanceModeScreen — fullscreen set list player with prev/next controls.
+
+/// In-memory position store: maps setListId → last viewed score index.
+final _performancePositionProvider =
+    StateProvider<Map<String, int>>((ref) => {});
 
 class PerformanceModeScreen extends ConsumerStatefulWidget {
   const PerformanceModeScreen({super.key, required this.setListId});
@@ -25,6 +30,7 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
   ScoreModel? _currentScore;
   bool _overlayVisible = true;
   Timer? _hideOverlayTimer;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -36,6 +42,7 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
   @override
   void dispose() {
     _hideOverlayTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -45,9 +52,13 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
         .getWithEntries(widget.setListId);
     if (sl == null || !mounted) return;
 
+    final savedIndex =
+        ref.read(_performancePositionProvider)[widget.setListId] ?? 0;
+
     setState(() {
       _scoreIds = sl.entries.map((e) => e.scoreId).toList();
-      _currentIndex = 0;
+      _currentIndex =
+          savedIndex.clamp(0, sl.entries.isEmpty ? 0 : sl.entries.length - 1);
     });
     await _loadCurrentScore();
   }
@@ -58,6 +69,12 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
         .read(scoreRepositoryProvider)
         .getById(_scoreIds[_currentIndex]);
     if (mounted) setState(() => _currentScore = score);
+  }
+
+  void _savePosition() {
+    ref.read(_performancePositionProvider.notifier).update(
+          (map) => {...map, widget.setListId: _currentIndex},
+        );
   }
 
   void _startHideTimer() {
@@ -79,45 +96,80 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
       _currentIndex = next;
       _currentScore = null;
     });
+    _savePosition();
     await _loadCurrentScore();
     _showOverlay();
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        _navigate(1);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        _navigate(-1);
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   @override
   Widget build(BuildContext context) {
     final score = _currentScore;
 
-    return GestureDetector(
-      onTap: _showOverlay,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            // PDF viewer
-            if (score != null)
-              ReaderScreen(
-                scoreId: score.id,
-                score: score,
-              )
-            else
-              const Center(child: CircularProgressIndicator()),
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKeyEvent,
+      child: GestureDetector(
+        onTap: _showOverlay,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              // PDF viewer
+              if (score != null)
+                ReaderScreen(
+                  scoreId: score.id,
+                  score: score,
+                )
+              else
+                const Center(child: CircularProgressIndicator()),
 
-            // Performance overlay
-            if (_overlayVisible)
+              // Persistent back button (always visible, top-left)
               Positioned(
-                bottom: 0,
+                top: 0,
                 left: 0,
-                right: 0,
-                child: _PerformanceOverlay(
-                  title: score?.title ?? '…',
-                  currentIndex: _currentIndex,
-                  totalCount: _scoreIds.length,
-                  onPrevious: () => _navigate(-1),
-                  onNext: () => _navigate(1),
-                  onExit: () => context.pop(),
+                child: SafeArea(
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    tooltip: 'Back',
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black45,
+                    ),
+                    onPressed: () => context.pop(),
+                  ),
                 ),
               ),
-          ],
+
+              // Performance overlay (auto-hides)
+              if (_overlayVisible)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _PerformanceOverlay(
+                    title: score?.title ?? '…',
+                    currentIndex: _currentIndex,
+                    totalCount: _scoreIds.length,
+                    onPrevious: () => _navigate(-1),
+                    onNext: () => _navigate(1),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -131,7 +183,6 @@ class _PerformanceOverlay extends StatelessWidget {
     required this.totalCount,
     required this.onPrevious,
     required this.onNext,
-    required this.onExit,
   });
 
   final String title;
@@ -139,7 +190,6 @@ class _PerformanceOverlay extends StatelessWidget {
   final int totalCount;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
-  final VoidCallback onExit;
 
   @override
   Widget build(BuildContext context) {
@@ -148,10 +198,6 @@ class _PerformanceOverlay extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
-            onPressed: onExit,
-          ),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
