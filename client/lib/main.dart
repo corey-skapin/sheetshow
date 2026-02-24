@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,16 +75,26 @@ final _router = GoRouter(
 );
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    ProviderScope(
-      overrides: [
-        tokenLoaderProvider.overrideWith(
-          (ref) => ref.read(tokenStorageServiceProvider).getAccessToken,
+  // Workaround for Flutter Windows keyboard state assertion bug:
+  // https://github.com/flutter/flutter/issues/107579
+  runZonedGuarded(
+    () {
+      WidgetsFlutterBinding.ensureInitialized();
+      runApp(
+        ProviderScope(
+          overrides: [
+            tokenLoaderProvider.overrideWith(
+              (ref) => ref.read(tokenStorageServiceProvider).getAccessToken,
+            ),
+          ],
+          child: const SheetShowApp(),
         ),
-      ],
-      child: const SheetShowApp(),
-    ),
+      );
+    },
+    (error, stack) {
+      if (error.toString().contains('KeyDownEvent is dispatched')) return;
+      FlutterError.reportError(FlutterErrorDetails(exception: error, stack: stack));
+    },
   );
 }
 
