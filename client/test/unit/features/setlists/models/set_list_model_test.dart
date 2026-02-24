@@ -144,16 +144,17 @@ void main() {
           'id': 'setlist-2',
           'name': 'Rehearsal',
           'entries': <Map<String, dynamic>>[],
+          'cloudId': 'cloud-setlist-2',
           'createdAt': now.toIso8601String(),
           'updatedAt': now.toIso8601String(),
-          'version': 2,
+          'serverVersion': 2,
         };
         final setList = SetListModel.fromJson(json);
         expect(setList.id, 'setlist-2');
         expect(setList.name, 'Rehearsal');
         expect(setList.entries, isEmpty);
         expect(setList.syncState, SyncState.synced);
-        expect(setList.cloudId, 'setlist-2');
+        expect(setList.cloudId, 'cloud-setlist-2');
         expect(setList.serverVersion, 2);
       });
 

@@ -7,6 +7,7 @@
     <UserSecretsId>sheetshow-api-secrets</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <ProjectReference Include="..\SheetShow.Infrastructure\SheetShow.Infrastructure.csproj" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />

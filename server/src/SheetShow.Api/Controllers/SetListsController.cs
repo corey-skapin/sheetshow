@@ -68,6 +68,11 @@ public sealed class SetListsController : ControllerBase
             return this.NotFound();
         }
 
+        if (request.ClientVersion != setList.Version)
+        {
+            return this.Conflict(new { message = "Conflict: client version is out of date.", serverVersion = setList.Version });
+        }
+
         setList.Name = request.Name;
         setList.UpdatedAt = DateTimeOffset.UtcNow;
         setList.Version++;
