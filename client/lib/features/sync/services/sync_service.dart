@@ -3,12 +3,12 @@ import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/services/api_client.dart';
-import '../models/sync_status.dart' as status_model;
-import 'conflict_detector.dart';
-import 'sync_queue_processor.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/api_client.dart';
+import 'package:sheetshow/features/sync/models/sync_status.dart' as status_model;
+import 'package:sheetshow/features/sync/services/conflict_detector.dart';
+import 'package:sheetshow/features/sync/services/sync_queue_processor.dart';
 
 // T081-T084: SyncService — full offline-first sync engine.
 

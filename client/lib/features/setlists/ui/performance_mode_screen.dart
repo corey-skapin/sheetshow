@@ -2,11 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../library/models/score_model.dart';
-import '../../library/repositories/score_repository.dart';
-import '../../reader/ui/reader_screen.dart';
-import '../repositories/set_list_repository.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
+import 'package:sheetshow/features/reader/ui/reader_screen.dart';
+import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
 
 // T063: PerformanceModeScreen — fullscreen set list player with prev/next controls.
 

@@ -1,5 +1,5 @@
-import '../../../core/models/enums.dart';
-import 'set_list_entry_model.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/setlists/models/set_list_entry_model.dart';
 
 // T057: SetListModel — ordered set list of scores.
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdfrx/pdfrx.dart';
-import '../../../core/theme/app_colors.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
 
 // T040: PdfPageView widget — wraps pdfrx PdfViewer with smooth scrolling and page number overlay.
 

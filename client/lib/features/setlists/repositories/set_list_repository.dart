@@ -1,10 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../models/set_list_entry_model.dart';
-import '../models/set_list_model.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/setlists/models/set_list_entry_model.dart';
+import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 
 // T059: SetListRepository — Drift DAO for set list management.
 

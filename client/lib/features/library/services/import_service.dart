@@ -5,14 +5,14 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:uuid/uuid.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../../../core/services/clock_service.dart';
-import '../../../core/services/error_display_service.dart';
-import '../models/score_model.dart';
-import '../repositories/score_repository.dart';
-import 'thumbnail_service.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
+import 'package:sheetshow/core/services/error_display_service.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
+import 'package:sheetshow/features/library/services/thumbnail_service.dart';
 
 // T036: ImportService — picks a PDF, copies it locally, registers in DB, triggers thumbnail.
 

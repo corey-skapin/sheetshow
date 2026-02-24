@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../../../core/models/enums.dart';
-import 'ink_stroke.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/reader/models/ink_stroke.dart';
 
 // T068: AnnotationLayer — stores all ink strokes for a single page of a score.
 

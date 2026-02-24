@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
-import '../models/score_model.dart';
-import '../repositories/score_repository.dart';
-import '../services/import_service.dart';
-import '../services/search_service.dart';
-import 'score_card.dart';
-import 'folder_tree.dart';
-import 'score_detail_sheet.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/core/theme/app_typography.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
+import 'package:sheetshow/features/library/services/import_service.dart';
+import 'package:sheetshow/features/library/services/search_service.dart';
+import 'package:sheetshow/features/library/ui/score_card.dart';
+import 'package:sheetshow/features/library/ui/folder_tree.dart';
+import 'package:sheetshow/features/library/ui/score_detail_sheet.dart';
 
 // T039: LibraryScreen — reactive grid of scores with import FAB, folder sidebar, search bar.
 

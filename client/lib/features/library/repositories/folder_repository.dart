@@ -1,10 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../../../core/services/error_display_service.dart';
-import '../models/folder_model.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/core/services/error_display_service.dart';
+import 'package:sheetshow/features/library/models/folder_model.dart';
 
 // T046: FolderRepository — Drift DAO for folder hierarchy management.
 

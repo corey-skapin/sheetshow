@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../core/models/enums.dart';
+import 'package:sheetshow/core/models/enums.dart';
 
 // T067: InkStroke — a single annotation stroke with normalised coordinates.
 

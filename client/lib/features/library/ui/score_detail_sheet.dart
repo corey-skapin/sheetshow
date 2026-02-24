@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../models/score_model.dart';
-import '../repositories/score_repository.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 // T053: ScoreDetailSheet — bottom sheet with tag management and score actions.
 

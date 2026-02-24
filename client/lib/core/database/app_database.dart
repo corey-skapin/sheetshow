@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/enums.dart';
+import 'package:sheetshow/core/models/enums.dart';
 
 // T015 + T016: Complete Drift schema for all 8 tables + FTS5 virtual table.
 // WAL mode is enabled for SC-008 crash safety.

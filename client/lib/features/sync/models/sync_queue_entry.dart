@@ -1,4 +1,4 @@
-import '../../../core/models/enums.dart';
+import 'package:sheetshow/core/models/enums.dart';
 
 // T076: SyncQueueEntry — maps to sync_queue Drift table.
 

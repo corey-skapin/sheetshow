@@ -1,8 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../models/score_model.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
 
 // T035: ScoreRepository (client) — Drift DAO for score CRUD and sync state management.
 

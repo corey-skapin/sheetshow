@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
-import '../repositories/score_repository.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 // T037: ThumbnailService — renders page 1 of a PDF at 200x280 px, saves as PNG.
 

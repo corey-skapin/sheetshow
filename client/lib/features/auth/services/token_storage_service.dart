@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../models/auth_token.dart';
+import 'package:sheetshow/features/auth/models/auth_token.dart';
 
 // T097: TokenStorageService — uses flutter_secure_storage (Windows Credential Manager).
 

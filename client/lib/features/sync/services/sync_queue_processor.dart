@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../models/sync_queue_entry.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/sync/models/sync_queue_entry.dart';
 
 // T079: SyncQueueProcessor — reads and deduplicates pending sync queue entries.
 

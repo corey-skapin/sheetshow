@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import '../constants/app_constants.dart';
-import 'error_display_service.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/services/error_display_service.dart';
 
 // T019: ApiClient — HTTP wrapper with Bearer token injection, 401 auto-refresh, and error mapping.
 

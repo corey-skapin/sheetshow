@@ -1,4 +1,4 @@
-import '../../../core/models/enums.dart';
+import 'package:sheetshow/core/models/enums.dart';
 
 // T045: FolderModel — maps to the folders Drift table.
 

@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/services/api_client.dart';
-import '../models/auth_token.dart';
-import '../models/user_profile.dart';
-import 'token_storage_service.dart';
+import 'package:sheetshow/core/services/api_client.dart';
+import 'package:sheetshow/features/auth/models/auth_token.dart';
+import 'package:sheetshow/features/auth/models/user_profile.dart';
+import 'package:sheetshow/features/auth/services/token_storage_service.dart';
 
 // T099: AuthService — register, login, logout, refresh, password flows.
 
