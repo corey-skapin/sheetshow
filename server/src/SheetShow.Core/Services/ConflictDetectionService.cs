@@ -19,18 +19,18 @@ public sealed class ConflictDetectionService
             return new SyncOperationResult(operation.OperationId, "accepted");
         }
 
-        // clientVersion == serverVersion: the client is aware of the latest server version — accept
-        // clientVersion < serverVersion: server has a newer version than the client knew about — conflict
-        if (operation.ClientVersion >= existingLog.Version)
+        // clientVersion == 0 means the client has not yet incorporated any server-side changes
+        // for this entity. If the server already has a log entry, the client is behind → conflict.
+        if (operation.ClientVersion == 0)
         {
-            return new SyncOperationResult(operation.OperationId, "accepted");
+            return new SyncOperationResult(
+                operation.OperationId,
+                "conflict",
+                ConflictType: "version_mismatch",
+                ServerPayload: existingLog.PayloadJson);
         }
 
-        return new SyncOperationResult(
-            operation.OperationId,
-            "conflict",
-            ConflictType: "version_mismatch",
-            ServerPayload: existingLog.PayloadJson,
-            ServerVersion: existingLog.Version);
+        // Client has synced at least once — accept the operation
+        return new SyncOperationResult(operation.OperationId, "accepted");
     }
 }

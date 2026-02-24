@@ -49,6 +49,7 @@ class FolderModel {
         'id': id,
         'name': name,
         'parentFolderId': parentFolderId,
+        'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'cloudId': cloudId,
       };
@@ -62,7 +63,7 @@ class FolderModel {
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
             DateTime.now(),
         syncState: SyncState.synced,
-        cloudId: json['id'] as String?,
+        cloudId: json['cloudId'] as String?,
       );
 
   @override

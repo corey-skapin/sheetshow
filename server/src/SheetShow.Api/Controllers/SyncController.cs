@@ -79,15 +79,12 @@ public sealed class SyncController : ControllerBase
     {
         if (request.Operations.Count > SyncConstants.MaxBatchSize)
         {
-            return this.BadRequest(new { message = $"Batch size exceeds maximum of {SyncConstants.MaxBatchSize} operations." });
+            return this.BadRequest(new { message = $"Batch too large. Maximum allowed: {SyncConstants.MaxBatchSize}." });
         }
 
-        var entityIds = request.Operations.Select(o => o.EntityId).ToHashSet();
-        var entityTypes = request.Operations.Select(o => o.EntityType).ToHashSet();
+        var operationEntityIds = request.Operations.Select(o => o.EntityId).ToHashSet();
         var existingLogs = await this.db.SyncLogs
-            .Where(l => l.UserId == this.CurrentUserId &&
-                        entityTypes.Contains(l.EntityType) &&
-                        entityIds.Contains(l.EntityId))
+            .Where(l => l.UserId == this.CurrentUserId && operationEntityIds.Contains(l.EntityId))
             .ToListAsync(ct);
 
         var result = this.syncService.ProcessPush(request.Operations, existingLogs);
@@ -106,7 +103,6 @@ public sealed class SyncController : ControllerBase
                     EntityId = op.EntityId,
                     Operation = op.Operation,
                     PayloadJson = op.PayloadJson,
-                    Version = op.ClientVersion,
                     AppliedAt = DateTimeOffset.UtcNow,
                 });
             }

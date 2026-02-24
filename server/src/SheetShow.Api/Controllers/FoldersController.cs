@@ -62,7 +62,7 @@ public sealed class FoldersController : ControllerBase
 
         if (request.ClientVersion != folder.Version)
         {
-            return this.Conflict(new { message = "Version conflict: the folder has been modified by another client." });
+            return this.Conflict(new { message = "Conflict: client version is out of date.", serverVersion = folder.Version });
         }
 
         folder.Name = request.Name;

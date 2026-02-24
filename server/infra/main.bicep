@@ -12,7 +12,13 @@ param postgresAdminPassword string
 var prefix = 'sheetshow-${environment}'
 var acrName = replace('${prefix}acr', '-', '')
 
-// Azure Container Registry
+// User-assigned managed identity for ACR pull
+resource pullIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${prefix}-pull-identity'
+  location: location
+}
+
+// Azure Container Registry (admin user disabled; pull access via managed identity)
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
   location: location
@@ -20,20 +26,15 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   properties: { adminUserEnabled: false }
 }
 
-// Managed identity for the Container App to pull images from ACR
-resource containerAppIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${prefix}-api-identity'
-  location: location
-}
-
-// Grant the managed identity the AcrPull role on the ACR
+// Grant AcrPull role to the managed identity
+// AcrPull built-in role definition ID: https://learn.microsoft.com/azure/role-based-access-control/built-in-roles
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.id, containerAppIdentity.id, acrPullRoleId)
+resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(acr.id, pullIdentity.id, acrPullRoleId)
   scope: acr
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
-    principalId: containerAppIdentity.properties.principalId
+    principalId: pullIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -52,7 +53,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${containerAppIdentity.id}': {}
+      '${pullIdentity.id}': {}
     }
   }
   properties: {
@@ -65,7 +66,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
       registries: [
         {
           server: acr.properties.loginServer
-          identity: containerAppIdentity.id
+          identity: pullIdentity.id
         }
       ]
     }

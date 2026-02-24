@@ -29,20 +29,19 @@ builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configurati
 builder.Services.AddDbContext<ApplicationDbContext>(opts =>
     opts.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Identity
+// ASP.NET Core Identity
 builder.Services.AddIdentity<AppUser, IdentityRole>(opts =>
 {
-    opts.Password.RequiredLength = 8;
     opts.Password.RequireDigit = true;
-    opts.Password.RequireUppercase = false;
-    opts.Password.RequireNonAlphanumeric = false;
+    opts.Password.RequiredLength = 8;
+    opts.User.RequireUniqueEmail = true;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
-// JWT authentication
-var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtSecret = jwtSection["SecretKey"] ?? throw new InvalidOperationException("JWT:SecretKey is not configured.");
+// JWT Bearer authentication
+var jwtSecret = builder.Configuration["Jwt:SecretKey"]
+    ?? throw new InvalidOperationException("Jwt:SecretKey is required.");
 builder.Services.AddAuthentication(opts =>
 {
     opts.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -55,9 +54,9 @@ builder.Services.AddAuthentication(opts =>
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
         ValidateIssuer = true,
-        ValidIssuer = jwtSection["Issuer"],
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidateAudience = true,
-        ValidAudience = jwtSection["Audience"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero,
     };
@@ -67,14 +66,17 @@ builder.Services.AddAuthorization();
 // Application services
 builder.Services.AddScoped<IScoreRepository, ScoreRepository>();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
-builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<ConflictDetectionService>();
 builder.Services.AddScoped<SyncService>();
+builder.Services.AddScoped<JwtTokenService>();
 
 // Azure Blob Storage
-builder.Services.AddSingleton(_ =>
-    new BlobServiceClient(builder.Configuration.GetConnectionString("AzureStorage") ?? "UseDevelopmentStorage=true"));
-builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
+var blobConnectionString = builder.Configuration.GetConnectionString("AzureBlobStorage");
+if (!string.IsNullOrEmpty(blobConnectionString))
+{
+    builder.Services.AddSingleton(_ => new BlobServiceClient(blobConnectionString));
+    builder.Services.AddScoped<IFileStorageService, AzureBlobStorageService>();
+}
 
 // Rate limiting
 builder.Services.AddRateLimiter(opts =>
@@ -108,16 +110,15 @@ builder.Services.AddRateLimiter(opts =>
     opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
-// CORS — allow any localhost origin (all ports) for development, explicit origins for production
+// CORS — allow any localhost origin (http or https) regardless of port, for local dev
 builder.Services.AddCors(opts =>
     opts.AddDefaultPolicy(policy =>
         policy.SetIsOriginAllowed(origin =>
-        {
-            var uri = new Uri(origin);
-            return uri.Host == "localhost" || uri.Host == "127.0.0.1";
-        })
-        .AllowAnyHeader()
-        .AllowAnyMethod()));
+                Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+              .AllowAnyHeader()
+              .AllowAnyMethod()));
 
 // Controllers + Swagger
 builder.Services.AddControllers();

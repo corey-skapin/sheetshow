@@ -70,7 +70,7 @@ public sealed class SetListsController : ControllerBase
 
         if (request.ClientVersion != setList.Version)
         {
-            return this.Conflict(new { message = "Version conflict: the set list has been modified by another client." });
+            return this.Conflict(new { message = "Conflict: client version is out of date.", serverVersion = setList.Version });
         }
 
         setList.Name = request.Name;

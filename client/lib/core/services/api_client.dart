@@ -104,19 +104,15 @@ class ApiClient {
   }
 }
 
-/// Signature of a function that asynchronously loads the current access token.
-typedef TokenLoader = Future<String?> Function();
-
-/// Riverpod provider for the [TokenLoader].
-///
-/// By default returns a loader that yields `null`. Override this provider
-/// (e.g. in AuthService after login) to supply the real access token from
-/// [TokenStorageService.getAccessToken].
-final tokenLoaderProvider = Provider<TokenLoader>((ref) => () async => null);
+/// Riverpod provider for [ApiClient].
+/// Token storage is injected lazily to avoid circular dependency with AuthService.
+/// Override [tokenLoaderProvider] in a [ProviderScope] (e.g., after login) to
+/// supply a real token loader backed by [TokenStorageService].
+final tokenLoaderProvider = Provider<Future<String?> Function()>((ref) {
+  return () async => null;
+});
 
 /// Riverpod provider for [ApiClient].
-/// Token storage is injected via [tokenLoaderProvider] to avoid circular
-/// dependency with AuthService.
 final apiClientProvider = Provider<ApiClient>((ref) {
   final tokenLoader = ref.watch(tokenLoaderProvider);
   return ApiClient(tokenStorage: tokenLoader);

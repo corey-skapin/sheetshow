@@ -73,6 +73,7 @@ class ScoreModel {
         'filename': filename,
         'totalPages': totalPages,
         'folderId': folderId,
+        'createdAt': importedAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'cloudId': cloudId,
         'serverVersion': serverVersion,
@@ -91,8 +92,8 @@ class ScoreModel {
         updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
             DateTime.now(),
         syncState: SyncState.synced,
-        cloudId: json['id'] as String?,
-        serverVersion: json['version'] as int? ?? 0,
+        cloudId: json['cloudId'] as String?,
+        serverVersion: json['serverVersion'] as int? ?? 0,
       );
 
   @override
