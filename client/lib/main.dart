@@ -121,6 +121,8 @@ class SheetShowApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'SheetShow',
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
