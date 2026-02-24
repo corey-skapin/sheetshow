@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:sheetshow/features/reader/ui/annotation_overlay.dart';
 
 // T040: PdfPageView widget — wraps pdfrx PdfViewer with smooth scrolling and page number overlay.
 
@@ -9,10 +10,22 @@ class PdfPageView extends StatefulWidget {
     super.key,
     required this.filePath,
     this.onPageChanged,
+    this.scoreId,
+    this.annotationsVisible = false,
+    this.editMode = false,
   });
 
   final String filePath;
   final void Function(int page, int total)? onPageChanged;
+
+  /// Score ID used to load annotation layers; required when [annotationsVisible].
+  final String? scoreId;
+
+  /// Whether to show the annotation overlay on each page.
+  final bool annotationsVisible;
+
+  /// Whether the annotation overlay accepts pointer input for drawing.
+  final bool editMode;
 
   @override
   State<PdfPageView> createState() => _PdfPageViewState();
@@ -53,6 +66,16 @@ class _PdfPageViewState extends State<PdfPageView> {
                 widget.onPageChanged?.call(page, _totalPages);
               }
             },
+            pageOverlaysBuilder:
+                (widget.annotationsVisible && widget.scoreId != null)
+                    ? (context, pageRect, page) => [
+                          AnnotationOverlay(
+                            scoreId: widget.scoreId!,
+                            pageNumber: page.pageNumber,
+                            editMode: widget.editMode,
+                          ),
+                        ]
+                    : null,
           ),
         ),
         // Page number indicator
