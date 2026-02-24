@@ -93,7 +93,8 @@ void main() {
     },
     (error, stack) {
       if (error.toString().contains('KeyDownEvent is dispatched')) return;
-      FlutterError.reportError(FlutterErrorDetails(exception: error, stack: stack));
+      FlutterError.reportError(
+          FlutterErrorDetails(exception: error, stack: stack));
     },
   );
 }
