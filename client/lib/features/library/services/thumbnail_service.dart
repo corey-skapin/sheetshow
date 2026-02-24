@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
@@ -29,8 +28,7 @@ class ThumbnailService {
       final thumbPath = path.join(thumbDir.path, '$scoreId.png');
 
       // Render in an isolate to avoid blocking UI
-      await compute(
-          _renderThumbnail, _ThumbnailParams(localFilePath, thumbPath));
+      await compute(_renderThumbnail, (localFilePath, thumbPath));
 
       // Update the score record with the thumbnail path
       final score = await _scoreRepository.getById(scoreId);
@@ -46,15 +44,10 @@ class ThumbnailService {
   }
 }
 
-class _ThumbnailParams {
-  const _ThumbnailParams(this.sourcePath, this.destPath);
-  final String sourcePath;
-  final String destPath;
-}
-
 /// Top-level function for isolate execution.
-Future<void> _renderThumbnail(_ThumbnailParams params) async {
-  final doc = await PdfDocument.openFile(params.sourcePath);
+Future<void> _renderThumbnail((String, String) params) async {
+  final (sourcePath, destPath) = params;
+  final doc = await PdfDocument.openFile(sourcePath);
   if (doc.pages.isEmpty) {
     await doc.dispose();
     return;
@@ -78,7 +71,7 @@ Future<void> _renderThumbnail(_ThumbnailParams params) async {
   final bytes = await uiImage.toByteData(format: ImageByteFormat.png);
 
   if (bytes != null) {
-    await File(params.destPath).writeAsBytes(bytes.buffer.asUint8List());
+    await File(destPath).writeAsBytes(bytes.buffer.asUint8List());
   }
 
   await doc.dispose();

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/core/theme/app_colors.dart';
@@ -98,8 +100,7 @@ class ScoreCard extends StatelessWidget {
     final thumbPath = score.thumbnailPath;
     if (thumbPath != null) {
       return Image.file(
-        // ignore: avoid_slow_async_io
-        Uri.file(thumbPath).toFilePath() as dynamic,
+        File(thumbPath),
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _placeholder(),
       );
