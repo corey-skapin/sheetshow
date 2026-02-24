@@ -1,3 +1,6 @@
+// Tests for goRouterProvider defined in main.dart.
+// GoRouter must be read inside a ProviderContainer — testWidgets is required
+// because GoRouter interacts with the Flutter binding on construction.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
