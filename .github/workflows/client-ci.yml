@@ -50,7 +50,7 @@ jobs:
         run: |
           $lcov = Get-Content coverage/lcov.info
           # Parse lines hit / total for threshold check
-          $linesHit = ($lcov | Where-Object { $_ -match '^DA:\d+,1' }).Count
+          $linesHit = ($lcov | Where-Object { $_ -match '^DA:\d+,(\d+)' -and [int]$Matches[1] -gt 0 }).Count
           $linesTotal = ($lcov | Where-Object { $_ -match '^DA:\d+,' }).Count
           if ($linesTotal -gt 0) {
             $pct = [Math]::Round($linesHit / $linesTotal * 100, 1)
