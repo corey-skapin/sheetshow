@@ -1,5 +1,5 @@
 name: sheetshow
-description: SheetShow — Windows sheet music manager with PDF viewer, pen annotation, and cloud sync.
+description: SheetShow — offline Windows sheet music manager with PDF viewer and pen annotation.
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -16,21 +16,15 @@ dependencies:
   # Local database (SQLite + FTS5)
   drift: ^2.0.0
   drift_flutter: ^0.1.0
-  # Secure token storage (Windows Credential Manager)
-  flutter_secure_storage: ^9.0.0
   # State management
   riverpod: ^2.0.0
   flutter_riverpod: ^2.0.0
   # Navigation
   go_router: ^13.0.0
-  # Network connectivity
-  connectivity_plus: ^6.0.0
   # File picker
   file_picker: ^8.0.0
   # App directories
   path_provider: ^2.0.0
-  # HTTP client
-  http: ^1.0.0
   # UUID generation
   uuid: ^4.0.0
   # Path utilities
@@ -50,6 +44,8 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   # Mocking
   mockito: ^5.4.4
+  # HTTP mock client (used in tests)
+  http: ^1.0.0
 
 flutter:
   uses-material-design: true

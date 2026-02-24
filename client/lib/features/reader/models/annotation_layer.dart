@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/features/reader/models/ink_stroke.dart';
 
 // T068: AnnotationLayer — stores all ink strokes for a single page of a score.
@@ -12,8 +11,6 @@ class AnnotationLayer {
     required this.pageNumber,
     required this.strokes,
     required this.updatedAt,
-    this.syncState = SyncState.synced,
-    this.serverVersion = 0,
   });
 
   final String id;
@@ -21,8 +18,6 @@ class AnnotationLayer {
   final int pageNumber;
   final List<InkStroke> strokes;
   final DateTime updatedAt;
-  final SyncState syncState;
-  final int serverVersion;
 
   /// Serialize strokes to JSON string for Drift storage.
   String get strokesJson => jsonEncode(strokes.map((s) => s.toJson()).toList());
@@ -34,8 +29,6 @@ class AnnotationLayer {
     required int pageNumber,
     required String strokesJson,
     required DateTime updatedAt,
-    required SyncState syncState,
-    required int serverVersion,
   }) {
     final strokesRaw = jsonDecode(strokesJson) as List? ?? [];
     final strokes = strokesRaw
@@ -47,14 +40,11 @@ class AnnotationLayer {
       pageNumber: pageNumber,
       strokes: strokes,
       updatedAt: updatedAt,
-      syncState: syncState,
-      serverVersion: serverVersion,
     );
   }
 
   AnnotationLayer copyWith({
     List<InkStroke>? strokes,
-    SyncState? syncState,
     DateTime? updatedAt,
   }) =>
       AnnotationLayer(
@@ -63,16 +53,5 @@ class AnnotationLayer {
         pageNumber: pageNumber,
         strokes: strokes ?? this.strokes,
         updatedAt: updatedAt ?? this.updatedAt,
-        syncState: syncState ?? this.syncState,
-        serverVersion: serverVersion,
       );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'scoreId': scoreId,
-        'pageNumber': pageNumber,
-        'strokes': strokes.map((s) => s.toJson()).toList(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'serverVersion': serverVersion,
-      };
 }

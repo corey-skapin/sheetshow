@@ -1,10 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sheetshow/core/models/enums.dart';
-
-// T015 + T016: Complete Drift schema for all 8 tables + FTS5 virtual table.
-// WAL mode is enabled for SC-008 crash safety.
 
 part 'app_database.g.dart';
 
@@ -20,12 +16,6 @@ class Scores extends Table {
   TextColumn get folderId => text().nullable()();
   DateTimeColumn get importedAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
-  // Sync fields
-  TextColumn get syncState =>
-      textEnum<SyncState>().withDefault(const Constant('synced'))();
-  TextColumn get cloudId => text().nullable()();
-  IntColumn get serverVersion => integer().withDefault(const Constant(0))();
-  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -37,11 +27,6 @@ class Folders extends Table {
   TextColumn get parentFolderId => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
-  // Sync fields
-  TextColumn get syncState =>
-      textEnum<SyncState>().withDefault(const Constant('synced'))();
-  TextColumn get cloudId => text().nullable()();
-  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -60,12 +45,6 @@ class SetLists extends Table {
   TextColumn get name => text()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
-  // Sync fields
-  TextColumn get syncState =>
-      textEnum<SyncState>().withDefault(const Constant('synced'))();
-  TextColumn get cloudId => text().nullable()();
-  IntColumn get serverVersion => integer().withDefault(const Constant(0))();
-  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -94,10 +73,6 @@ class AnnotationLayers extends Table {
   IntColumn get pageNumber => integer()();
   TextColumn get strokesJson => text().withDefault(const Constant('[]'))();
   DateTimeColumn get updatedAt => dateTime()();
-  // Sync fields
-  TextColumn get syncState =>
-      textEnum<SyncState>().withDefault(const Constant('synced'))();
-  IntColumn get serverVersion => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -106,30 +81,6 @@ class AnnotationLayers extends Table {
   List<Set<Column>> get uniqueKeys => [
         {scoreId, pageNumber},
       ];
-}
-
-class SyncQueue extends Table {
-  TextColumn get id => text()();
-  TextColumn get entityType => textEnum<SyncEntityType>()();
-  TextColumn get entityId => text()();
-  TextColumn get operation => textEnum<SyncOperationType>()();
-  TextColumn get payloadJson => text().nullable()();
-  TextColumn get status => text().withDefault(const Constant('pending'))();
-  DateTimeColumn get createdAt => dateTime()();
-  IntColumn get attemptCount => integer().withDefault(const Constant(0))();
-  DateTimeColumn get lastAttemptAt => dateTime().nullable()();
-  TextColumn get errorMessage => text().nullable()();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-class SyncMeta extends Table {
-  TextColumn get key => text()();
-  TextColumn get value => text()();
-
-  @override
-  Set<Column> get primaryKey => {key};
 }
 
 // ─── FTS5 virtual table ───────────────────────────────────────────────────────
@@ -142,8 +93,6 @@ class SyncMeta extends Table {
     SetLists,
     SetListEntries,
     AnnotationLayers,
-    SyncQueue,
-    SyncMeta,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -152,7 +101,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -169,9 +118,64 @@ class AppDatabase extends _$AppDatabase {
               content_rowid='rowid'
             )
           ''');
+          // Triggers to keep FTS index in sync with scores table
+          await customStatement('''
+            CREATE TRIGGER IF NOT EXISTS scores_ai AFTER INSERT ON scores BEGIN
+              INSERT INTO score_search(rowid, id, title, tags_flat)
+              VALUES (new.rowid, new.id, new.title, '');
+            END
+          ''');
+          await customStatement('''
+            CREATE TRIGGER IF NOT EXISTS scores_ad AFTER DELETE ON scores BEGIN
+              INSERT INTO score_search(score_search, rowid, id, title, tags_flat)
+              VALUES ('delete', old.rowid, old.id, old.title, '');
+            END
+          ''');
+          await customStatement('''
+            CREATE TRIGGER IF NOT EXISTS scores_au AFTER UPDATE ON scores BEGIN
+              INSERT INTO score_search(score_search, rowid, id, title, tags_flat)
+              VALUES ('delete', old.rowid, old.id, old.title, '');
+              INSERT INTO score_search(rowid, id, title, tags_flat)
+              VALUES (new.rowid, new.id, new.title, '');
+            END
+          ''');
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            // Drop sync infrastructure tables
+            await customStatement('DROP TABLE IF EXISTS sync_queue');
+            await customStatement('DROP TABLE IF EXISTS sync_meta');
+            // Drop sync columns from core tables (SQLite ALTER TABLE DROP COLUMN)
+            await customStatement(
+                'ALTER TABLE scores DROP COLUMN IF EXISTS sync_state');
+            await customStatement(
+                'ALTER TABLE scores DROP COLUMN IF EXISTS cloud_id');
+            await customStatement(
+                'ALTER TABLE scores DROP COLUMN IF EXISTS server_version');
+            await customStatement(
+                'ALTER TABLE scores DROP COLUMN IF EXISTS is_deleted');
+            await customStatement(
+                'ALTER TABLE folders DROP COLUMN IF EXISTS sync_state');
+            await customStatement(
+                'ALTER TABLE folders DROP COLUMN IF EXISTS cloud_id');
+            await customStatement(
+                'ALTER TABLE folders DROP COLUMN IF EXISTS is_deleted');
+            await customStatement(
+                'ALTER TABLE set_lists DROP COLUMN IF EXISTS sync_state');
+            await customStatement(
+                'ALTER TABLE set_lists DROP COLUMN IF EXISTS cloud_id');
+            await customStatement(
+                'ALTER TABLE set_lists DROP COLUMN IF EXISTS server_version');
+            await customStatement(
+                'ALTER TABLE set_lists DROP COLUMN IF EXISTS is_deleted');
+            await customStatement(
+                'ALTER TABLE annotation_layers DROP COLUMN IF EXISTS sync_state');
+            await customStatement(
+                'ALTER TABLE annotation_layers DROP COLUMN IF EXISTS server_version');
+          }
         },
         beforeOpen: (details) async {
-          // Enable WAL mode for SC-008 crash safety
+          // Enable WAL mode for crash safety
           await customStatement('PRAGMA journal_mode=WAL');
           await customStatement('PRAGMA foreign_keys=ON');
         },
@@ -179,20 +183,22 @@ class AppDatabase extends _$AppDatabase {
 
   // ─── FTS5 helpers ──────────────────────────────────────────────────────────
 
-  /// Upsert the FTS5 index entry for a score.
+  /// Upsert the FTS5 index entry for a score (atomic delete + insert).
   Future<void> rebuildScoreSearch(
     String id,
     String title,
     String tagsFlat,
   ) async {
-    await customStatement(
-      'DELETE FROM score_search WHERE id = ?',
-      [id],
-    );
-    await customStatement(
-      'INSERT INTO score_search(id, title, tags_flat) VALUES (?, ?, ?)',
-      [id, title, tagsFlat],
-    );
+    await transaction(() async {
+      await customStatement(
+        'DELETE FROM score_search WHERE id = ?',
+        [id],
+      );
+      await customStatement(
+        'INSERT INTO score_search(id, title, tags_flat) VALUES (?, ?, ?)',
+        [id, title, tagsFlat],
+      );
+    });
   }
 
   /// Full-text search across title and tags_flat.

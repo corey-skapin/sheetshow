@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
-import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
 
@@ -88,7 +87,6 @@ class SetListsScreen extends ConsumerWidget {
             entries: const [],
             createdAt: now,
             updatedAt: now,
-            syncState: SyncState.pendingUpload,
           ),
         );
   }
@@ -134,7 +132,7 @@ class SetListsScreen extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(setListRepositoryProvider).softDelete(sl.id);
+      await ref.read(setListRepositoryProvider).delete(sl.id);
     }
   }
 }

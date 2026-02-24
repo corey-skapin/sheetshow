@@ -5,7 +5,6 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:uuid/uuid.dart';
-import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/services/error_display_service.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
@@ -85,7 +84,6 @@ class ImportService {
       totalPages: totalPages,
       importedAt: now,
       updatedAt: now,
-      syncState: SyncState.pendingUpload,
     );
 
     await scoreRepository.insert(score);

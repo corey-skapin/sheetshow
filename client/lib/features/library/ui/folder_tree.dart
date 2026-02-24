@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sheetshow/core/models/enums.dart';
-import 'package:sheetshow/core/theme/app_colors.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/core/theme/app_typography.dart';
 import 'package:sheetshow/features/library/models/folder_model.dart';
@@ -51,9 +49,8 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
             stream: ref.watch(folderRepositoryProvider).watchAll(),
             builder: (context, snapshot) {
               final folders = snapshot.data ?? [];
-              final roots = folders
-                  .where((f) => f.parentFolderId == null && !f.isDeleted)
-                  .toList();
+              final roots =
+                  folders.where((f) => f.parentFolderId == null).toList();
               return ListView(
                 children: roots
                     .map(
@@ -80,9 +77,8 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
     List<FolderModel> allFolders,
     int depth,
   ) {
-    final children = allFolders
-        .where((f) => f.parentFolderId == folder.id && !f.isDeleted)
-        .toList();
+    final children =
+        allFolders.where((f) => f.parentFolderId == folder.id).toList();
 
     return Column(
       children: [
@@ -120,7 +116,6 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
             name: name,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-            syncState: SyncState.pendingUpload,
           ),
         );
   }
@@ -151,7 +146,7 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
       ),
     );
     if (confirmed == true) {
-      await ref.read(folderRepositoryProvider).softDelete(folder.id);
+      await ref.read(folderRepositoryProvider).delete(folder.id);
     }
   }
 
@@ -217,6 +212,7 @@ class _FolderNode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return DragTarget<ScoreModel>(
       onAcceptWithDetails: (details) => onAcceptDrop(details.data),
       builder: (context, candidateData, rejectedData) {
@@ -233,20 +229,21 @@ class _FolderNode extends StatelessWidget {
             leading: Icon(
               icon,
               size: 20,
-              color:
-                  isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
             ),
             title: Text(
               label,
               style: AppTypography.bodySmall.copyWith(
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? AppColors.primary : AppColors.onSurface,
+                color: isSelected ? colorScheme.primary : colorScheme.onSurface,
               ),
             ),
             tileColor: isHovered
-                ? AppColors.primaryVariant.withOpacity(0.1)
+                ? colorScheme.primary.withOpacity(0.1)
                 : isSelected
-                    ? AppColors.surfaceVariant
+                    ? colorScheme.surfaceContainerHighest
                     : null,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,

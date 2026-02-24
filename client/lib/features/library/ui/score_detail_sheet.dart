@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sheetshow/core/theme/app_colors.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
@@ -55,7 +54,7 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
               height: 4,
               margin: const EdgeInsets.only(bottom: AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: Theme.of(context).colorScheme.outline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -113,7 +112,7 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
                 icon: const Icon(Icons.delete_outlined),
                 label: const Text('Delete'),
                 style: TextButton.styleFrom(
-                  foregroundColor: AppColors.error,
+                  foregroundColor: Theme.of(context).colorScheme.error,
                 ),
               ),
             ],
@@ -190,7 +189,7 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
       ),
     );
     if (confirmed == true) {
-      await ref.read(scoreRepositoryProvider).softDelete(widget.score.id);
+      await ref.read(scoreRepositoryProvider).delete(widget.score.id);
       if (mounted) Navigator.of(context).pop();
     }
   }

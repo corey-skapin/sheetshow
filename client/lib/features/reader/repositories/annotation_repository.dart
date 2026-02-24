@@ -1,10 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetshow/core/database/app_database.dart';
-import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/features/reader/models/annotation_layer.dart';
-
-// T070: AnnotationRepository — Drift DAO for annotation layer persistence.
 
 /// Client-side annotation repository storing ink strokes per page.
 class AnnotationRepository {
@@ -41,8 +38,6 @@ class AnnotationRepository {
               pageNumber: layer.pageNumber,
               strokesJson: Value(layer.strokesJson),
               updatedAt: layer.updatedAt,
-              syncState: Value(layer.syncState),
-              serverVersion: Value(layer.serverVersion),
             ),
           );
     } else {
@@ -53,7 +48,6 @@ class AnnotationRepository {
           .write(AnnotationLayersCompanion(
         strokesJson: Value(layer.strokesJson),
         updatedAt: Value(layer.updatedAt),
-        syncState: Value(layer.syncState),
       ));
     }
   }
@@ -66,20 +60,6 @@ class AnnotationRepository {
         .write(AnnotationLayersCompanion(
       strokesJson: const Value('[]'),
       updatedAt: Value(DateTime.now()),
-      syncState: const Value(SyncState.pendingUpdate),
-    ));
-  }
-
-  Future<void> updateSyncState(
-    String scoreId,
-    int pageNumber,
-    SyncState state,
-  ) async {
-    await (_db.update(_db.annotationLayers)
-          ..where((a) =>
-              a.scoreId.equals(scoreId) & a.pageNumber.equals(pageNumber)))
-        .write(AnnotationLayersCompanion(
-      syncState: Value(state),
     ));
   }
 
@@ -89,8 +69,6 @@ class AnnotationRepository {
         pageNumber: row.pageNumber,
         strokesJson: row.strokesJson,
         updatedAt: row.updatedAt,
-        syncState: row.syncState,
-        serverVersion: row.serverVersion,
       );
 }
 

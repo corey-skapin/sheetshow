@@ -1,33 +1,34 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/features/reader/models/ink_stroke.dart';
 import 'package:sheetshow/features/reader/models/annotation_layer.dart';
 import 'package:sheetshow/features/reader/repositories/annotation_repository.dart';
 
 // T071: AnnotationService — in-memory stroke management with persistence.
 
+/// Key used to scope an [AnnotationService] to a specific score page.
+typedef AnnotationPageKey = ({String scoreId, int pageNumber});
+
 /// Manages the annotation state for a single page: add, undo, clear.
 class AnnotationService extends StateNotifier<AnnotationLayer?> {
-  AnnotationService(this._repo) : super(null);
+  AnnotationService(this._repo, this._scoreId, this._pageNumber) : super(null) {
+    _loadPage();
+  }
 
   final AnnotationRepository _repo;
-  String _currentScoreId = '';
-  int _currentPageNumber = 0;
+  final String _scoreId;
+  final int _pageNumber;
 
-  /// Load annotations for a page.
-  Future<void> loadPage(String scoreId, int pageNumber) async {
-    _currentScoreId = scoreId;
-    _currentPageNumber = pageNumber;
-    final layer = await _repo.getLayer(scoreId, pageNumber);
-    state = layer;
+  Future<void> _loadPage() async {
+    final layer = await _repo.getLayer(_scoreId, _pageNumber);
+    if (mounted) state = layer;
   }
 
   /// Add a stroke to the current page.
   Future<void> addStroke(InkStroke stroke) async {
     final current = state;
     final strokes = <InkStroke>[...(current?.strokes ?? []), stroke];
-    final updated = _updateLayer(current, strokes, stroke.id);
+    final updated = _updateLayer(current, strokes);
     state = updated;
     await _persist(updated);
   }
@@ -37,7 +38,7 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
     final current = state;
     if (current == null || current.strokes.isEmpty) return;
     final strokes = List<InkStroke>.from(current.strokes)..removeLast();
-    final updated = _updateLayer(current, strokes, null);
+    final updated = _updateLayer(current, strokes);
     state = updated;
     await _persist(updated);
   }
@@ -48,7 +49,6 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
     if (current == null) return;
     final updated = current.copyWith(
       strokes: [],
-      syncState: SyncState.pendingUpdate,
       updatedAt: DateTime.now(),
     );
     state = updated;
@@ -58,22 +58,19 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
   AnnotationLayer _updateLayer(
     AnnotationLayer? current,
     List<InkStroke> strokes,
-    String? _,
   ) {
     final now = DateTime.now();
     if (current == null) {
       return AnnotationLayer(
         id: const Uuid().v4(),
-        scoreId: _currentScoreId,
-        pageNumber: _currentPageNumber,
+        scoreId: _scoreId,
+        pageNumber: _pageNumber,
         strokes: strokes,
         updatedAt: now,
-        syncState: SyncState.pendingUpdate,
       );
     }
     return current.copyWith(
       strokes: strokes,
-      syncState: SyncState.pendingUpdate,
       updatedAt: now,
     );
   }
@@ -83,8 +80,12 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
   }
 }
 
-/// Riverpod provider for [AnnotationService] — scoped per page.
-final annotationServiceProvider =
-    StateNotifierProvider.autoDispose<AnnotationService, AnnotationLayer?>(
-  (ref) => AnnotationService(ref.watch(annotationRepositoryProvider)),
+/// Riverpod provider for [AnnotationService] — scoped per score page.
+final annotationServiceProvider = StateNotifierProvider.autoDispose
+    .family<AnnotationService, AnnotationLayer?, AnnotationPageKey>(
+  (ref, key) => AnnotationService(
+    ref.watch(annotationRepositoryProvider),
+    key.scoreId,
+    key.pageNumber,
+  ),
 );
