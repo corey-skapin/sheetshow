@@ -25,7 +25,7 @@ class SyncStatusIndicator extends ConsumerWidget {
 
   Widget _buildContent(BuildContext context, SyncStatus status) {
     switch (status.state) {
-      case SyncState.idle:
+      case SyncUiState.idle:
         final lastSync = status.lastSyncAt;
         return Row(
           mainAxisSize: MainAxisSize.min,
@@ -40,7 +40,7 @@ class SyncStatusIndicator extends ConsumerWidget {
           ],
         );
 
-      case SyncState.syncing:
+      case SyncUiState.syncing:
         return const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -54,7 +54,7 @@ class SyncStatusIndicator extends ConsumerWidget {
           ],
         );
 
-      case SyncState.conflict:
+      case SyncUiState.conflict:
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -69,7 +69,7 @@ class SyncStatusIndicator extends ConsumerWidget {
           ],
         );
 
-      case SyncState.offline:
+      case SyncUiState.offline:
         return const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -81,7 +81,7 @@ class SyncStatusIndicator extends ConsumerWidget {
           ],
         );
 
-      case SyncState.error:
+      case SyncUiState.error:
         return const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -95,7 +95,7 @@ class SyncStatusIndicator extends ConsumerWidget {
   }
 
   void _handleTap(BuildContext context, WidgetRef ref, SyncStatus status) {
-    if (status.state == SyncState.error) {
+    if (status.state == SyncUiState.error) {
       ref.read(syncServiceProvider).retryNow();
     }
   }

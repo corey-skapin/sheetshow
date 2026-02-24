@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetshow/core/constants/app_constants.dart';
 import 'package:sheetshow/core/database/app_database.dart';
 import 'package:sheetshow/core/services/api_client.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/sync/models/sync_status.dart'
     as status_model;
 import 'package:sheetshow/features/sync/services/conflict_detector.dart';
@@ -14,19 +15,26 @@ import 'package:sheetshow/features/sync/services/sync_queue_processor.dart';
 
 /// Orchestrates pull/push sync with exponential backoff and conflict handling.
 class SyncService {
+  /// Creates a [SyncService].
+  ///
+  /// [clock] is optional and defaults to the real system clock. Provide a
+  /// [FakeClockService] (or any custom [ClockService]) in tests to control
+  /// timestamps deterministically.
   SyncService({
     required this.apiClient,
     required this.queueProcessor,
     required this.conflictDetector,
     required this.db,
     required this.statusNotifier,
-  });
+    ClockService? clock,
+  }) : _clock = clock ?? const SystemClockService();
 
   final ApiClient apiClient;
   final SyncQueueProcessor queueProcessor;
   final ConflictDetector conflictDetector;
   final AppDatabase db;
   final status_model.SyncStatusNotifier statusNotifier;
+  final ClockService _clock;
 
   Timer? _pollTimer;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
@@ -56,7 +64,7 @@ class SyncService {
     // Periodic sync every 30 seconds
     _pollTimer = Timer.periodic(
       const Duration(seconds: kSyncPollIntervalSec),
-      (_) => _syncNow(),
+      (_) => unawaited(_syncNow()),
     );
 
     // Immediate first sync
@@ -92,7 +100,7 @@ class SyncService {
     try {
       await _pullPhase();
       await _pushPhase();
-      statusNotifier.setIdle(DateTime.now());
+      statusNotifier.setIdle(_clock.now());
     } catch (e) {
       statusNotifier.setError(e.toString());
     } finally {
@@ -152,15 +160,6 @@ class SyncService {
       final results =
           (response['results'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
-      // Check for quota exceeded
-      final hasQuotaError = results.any((r) => r['status'] == 'quota_exceeded');
-      if (hasQuotaError) {
-        statusNotifier.setQuotaExceeded();
-      }
-
-      // Check for max-retry exhausted entries
-      // (handled by markFailed which transitions to 'failed' at kSyncMaxRetries)
-
       final conflicts = conflictDetector.processResults(batch, results);
 
       if (conflicts.isNotEmpty) {
@@ -215,7 +214,7 @@ class SyncService {
 
     if (row != null) return row.value;
 
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final id = _clock.now().millisecondsSinceEpoch.toString();
     await db.into(db.syncMeta).insert(
           SyncMetaCompanion.insert(key: 'device_id', value: id),
         );

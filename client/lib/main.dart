@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sheetshow/core/services/api_client.dart';
 import 'package:sheetshow/core/theme/app_theme.dart';
-import 'package:sheetshow/features/library/ui/library_screen.dart';
-import 'package:sheetshow/features/reader/ui/reader_screen.dart';
-import 'package:sheetshow/features/setlists/ui/set_lists_screen.dart';
-import 'package:sheetshow/features/setlists/ui/set_list_builder.dart';
-import 'package:sheetshow/features/setlists/ui/performance_mode_screen.dart';
+import 'package:sheetshow/features/auth/services/token_storage_service.dart';
+import 'package:sheetshow/features/auth/ui/forgot_password_screen.dart';
 import 'package:sheetshow/features/auth/ui/login_screen.dart';
 import 'package:sheetshow/features/auth/ui/register_screen.dart';
-import 'package:sheetshow/features/auth/ui/forgot_password_screen.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/ui/library_screen.dart';
+import 'package:sheetshow/features/reader/ui/reader_screen.dart';
+import 'package:sheetshow/features/setlists/ui/performance_mode_screen.dart';
+import 'package:sheetshow/features/setlists/ui/set_list_builder.dart';
+import 'package:sheetshow/features/setlists/ui/set_lists_screen.dart';
 
 // T020: App entry point — Riverpod ProviderScope + GoRouter routing skeleton.
 
@@ -73,8 +75,13 @@ final _router = GoRouter(
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
-    const ProviderScope(
-      child: SheetShowApp(),
+    ProviderScope(
+      overrides: [
+        tokenLoaderProvider.overrideWith(
+          (ref) => ref.read(tokenStorageServiceProvider).getAccessToken,
+        ),
+      ],
+      child: const SheetShowApp(),
     ),
   );
 }

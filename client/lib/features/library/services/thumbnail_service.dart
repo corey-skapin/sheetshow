@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:ui';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -16,7 +15,6 @@ class ThumbnailService {
   final ScoreRepository _scoreRepository;
 
   /// Generate a thumbnail for the first page of the PDF.
-  /// Runs on an isolate to avoid blocking the UI thread.
   Future<String?> generateThumbnail(
     String localFilePath,
     String scoreId,
@@ -27,8 +25,12 @@ class ThumbnailService {
       await thumbDir.create(recursive: true);
       final thumbPath = path.join(thumbDir.path, '$scoreId.png');
 
-      // Render in an isolate to avoid blocking UI
-      await compute(_renderThumbnail, (localFilePath, thumbPath));
+      // Render on the main isolate: dart:ui (createImage/toByteData) is not
+      // available in background isolates (Flutter engine restriction).
+      // This call is fire-and-forget (invoked with `unawaited` from the
+      // import flow), so it does not block navigation but may briefly
+      // affect rendering performance for large PDFs.
+      await _renderThumbnail((localFilePath, thumbPath));
 
       // Update the score record with the thumbnail path
       final score = await _scoreRepository.getById(scoreId);
