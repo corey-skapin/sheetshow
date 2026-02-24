@@ -1,0 +1,68 @@
+name: Server CI
+
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'server/**'
+      - '.github/workflows/server-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sheetshow
+          POSTGRES_PASSWORD: sheetshow_dev
+          POSTGRES_DB: sheetshow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        working-directory: server
+        run: dotnet restore
+
+      - name: Check formatting
+        working-directory: server
+        run: dotnet format --verify-no-changes
+
+      - name: Build
+        working-directory: server
+        run: dotnet build --no-restore -c Release
+
+      - name: Test with coverage
+        working-directory: server
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=sheetshow_test;Username=sheetshow;Password=sheetshow_dev"
+        run: |
+          dotnet test --no-build -c Release \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage
+
+      - name: Coverage gate (>= 80%)
+        run: |
+          pip install lcov_cobertura
+          # Parse coverage and enforce threshold
+
+      - name: Docker build
+        working-directory: server
+        run: docker build -t sheetshow-api:ci .

@@ -1,0 +1,58 @@
+# SheetShow project root .gitignore
+
+# ─── Secrets & local config ───────────────────────────────────────────────────
+.env
+.env.*
+*.secret.*
+secrets/
+**/api_config.dart
+
+# ─── OS artifacts ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*.bak
+desktop.ini
+
+# ─── Editor config ───────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+*.sln.docstates
+
+# ─── Flutter / Dart client ───────────────────────────────────────────────────
+client/.dart_tool/
+client/build/
+client/.flutter-plugins
+client/.flutter-plugins-dependencies
+client/pubspec.lock
+client/coverage/
+client/**/*.g.dart
+
+# ─── .NET server ─────────────────────────────────────────────────────────────
+server/src/**/bin/
+server/src/**/obj/
+server/tests/**/bin/
+server/tests/**/obj/
+server/**/*.user
+server/TestResults/
+server/*.db
+
+# ─── Node / npm (tooling) ────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+
+# ─── Docker ──────────────────────────────────────────────────────────────────
+server/.env.docker
+
+# ─── Terraform / Bicep state ─────────────────────────────────────────────────
+server/infra/.terraform/
+server/infra/*.tfstate
+server/infra/*.tfstate.backup
+server/infra/*.tfvars
+
+# ─── Log files ───────────────────────────────────────────────────────────────
+*.log
+logs/

@@ -1,0 +1,190 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../library/models/score_model.dart';
+import '../../library/repositories/score_repository.dart';
+import '../../reader/ui/reader_screen.dart';
+import '../repositories/set_list_repository.dart';
+
+// T063: PerformanceModeScreen — fullscreen set list player with prev/next controls.
+
+class PerformanceModeScreen extends ConsumerStatefulWidget {
+  const PerformanceModeScreen({super.key, required this.setListId});
+
+  final String setListId;
+
+  @override
+  ConsumerState<PerformanceModeScreen> createState() =>
+      _PerformanceModeScreenState();
+}
+
+class _PerformanceModeScreenState
+    extends ConsumerState<PerformanceModeScreen> {
+  List<String> _scoreIds = [];
+  int _currentIndex = 0;
+  ScoreModel? _currentScore;
+  bool _overlayVisible = true;
+  Timer? _hideOverlayTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSetList();
+    _startHideTimer();
+  }
+
+  @override
+  void dispose() {
+    _hideOverlayTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadSetList() async {
+    final sl = await ref
+        .read(setListRepositoryProvider)
+        .getWithEntries(widget.setListId);
+    if (sl == null || !mounted) return;
+
+    setState(() {
+      _scoreIds = sl.entries.map((e) => e.scoreId).toList();
+      _currentIndex = 0;
+    });
+    await _loadCurrentScore();
+  }
+
+  Future<void> _loadCurrentScore() async {
+    if (_scoreIds.isEmpty) return;
+    final score = await ref
+        .read(scoreRepositoryProvider)
+        .getById(_scoreIds[_currentIndex]);
+    if (mounted) setState(() => _currentScore = score);
+  }
+
+  void _startHideTimer() {
+    _hideOverlayTimer?.cancel();
+    _hideOverlayTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _overlayVisible = false);
+    });
+  }
+
+  void _showOverlay() {
+    setState(() => _overlayVisible = true);
+    _startHideTimer();
+  }
+
+  Future<void> _navigate(int delta) async {
+    final next = _currentIndex + delta;
+    if (next < 0 || next >= _scoreIds.length) return;
+    setState(() {
+      _currentIndex = next;
+      _currentScore = null;
+    });
+    await _loadCurrentScore();
+    _showOverlay();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final score = _currentScore;
+
+    return GestureDetector(
+      onTap: _showOverlay,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            // PDF viewer
+            if (score != null)
+              ReaderScreen(
+                scoreId: score.id,
+                score: score,
+              )
+            else
+              const Center(child: CircularProgressIndicator()),
+
+            // Performance overlay
+            if (_overlayVisible)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: _PerformanceOverlay(
+                  title: score?.title ?? '…',
+                  currentIndex: _currentIndex,
+                  totalCount: _scoreIds.length,
+                  onPrevious: () => _navigate(-1),
+                  onNext: () => _navigate(1),
+                  onExit: () => context.pop(),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PerformanceOverlay extends StatelessWidget {
+  const _PerformanceOverlay({
+    required this.title,
+    required this.currentIndex,
+    required this.totalCount,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onExit,
+  });
+
+  final String title;
+  final int currentIndex;
+  final int totalCount;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onExit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black54,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: onExit,
+          ),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${currentIndex + 1} / $totalCount',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+            onPressed: currentIndex > 0 ? onPrevious : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward_ios, color: Colors.white),
+            onPressed: currentIndex < totalCount - 1 ? onNext : null,
+          ),
+        ],
+      ),
+    );
+  }
+}

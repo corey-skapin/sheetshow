@@ -1,0 +1,59 @@
+name: Client CI
+
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'client/**'
+      - '.github/workflows/client-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'client/**'
+
+jobs:
+  analyze-test-build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter 3.24
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: client
+        run: flutter pub get
+
+      - name: Dart format check
+        working-directory: client
+        run: dart format --set-exit-if-changed lib/ test/
+
+      - name: Flutter analyze (zero warnings)
+        working-directory: client
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run unit tests with coverage
+        working-directory: client
+        run: flutter test --coverage test/unit/
+
+      - name: Check coverage threshold (>= 80%)
+        working-directory: client
+        run: |
+          $lcov = Get-Content coverage/lcov.info
+          # Parse lines hit / total for threshold check
+          $linesHit = ($lcov | Where-Object { $_ -match '^DA:\d+,1' }).Count
+          $linesTotal = ($lcov | Where-Object { $_ -match '^DA:\d+,' }).Count
+          if ($linesTotal -gt 0) {
+            $pct = [Math]::Round($linesHit / $linesTotal * 100, 1)
+            Write-Host "Coverage: $pct%"
+            if ($pct -lt 80) { throw "Coverage $pct% is below 80% threshold." }
+          }
+
+      - name: Build Windows release
+        working-directory: client
+        run: flutter build windows --release

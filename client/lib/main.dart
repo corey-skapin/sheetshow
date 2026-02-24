@@ -1,0 +1,95 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'core/database/app_database.dart';
+import 'core/theme/app_theme.dart';
+import 'features/library/ui/library_screen.dart';
+import 'features/reader/ui/reader_screen.dart';
+import 'features/setlists/ui/set_lists_screen.dart';
+import 'features/setlists/ui/set_list_builder.dart';
+import 'features/setlists/ui/performance_mode_screen.dart';
+import 'features/auth/ui/login_screen.dart';
+import 'features/auth/ui/register_screen.dart';
+import 'features/auth/ui/forgot_password_screen.dart';
+import 'features/library/models/score_model.dart';
+
+// T020: App entry point — Riverpod ProviderScope + GoRouter routing skeleton.
+
+final _router = GoRouter(
+  initialLocation: '/library',
+  routes: [
+    GoRoute(
+      path: '/library',
+      name: 'library',
+      builder: (context, state) => const LibraryScreen(),
+    ),
+    GoRoute(
+      path: '/reader/:scoreId',
+      name: 'reader',
+      builder: (context, state) {
+        final score = state.extra as ScoreModel?;
+        final scoreId = state.pathParameters['scoreId']!;
+        return ReaderScreen(scoreId: scoreId, score: score);
+      },
+    ),
+    GoRoute(
+      path: '/setlists',
+      name: 'setlists',
+      builder: (context, state) => const SetListsScreen(),
+    ),
+    GoRoute(
+      path: '/setlists/:id/builder',
+      name: 'setlist-builder',
+      builder: (context, state) {
+        final setListId = state.pathParameters['id']!;
+        return SetListBuilderScreen(setListId: setListId);
+      },
+    ),
+    GoRoute(
+      path: '/setlists/:id/performance',
+      name: 'setlist-performance',
+      builder: (context, state) {
+        final setListId = state.pathParameters['id']!;
+        return PerformanceModeScreen(setListId: setListId);
+      },
+    ),
+    GoRoute(
+      path: '/auth/login',
+      name: 'login',
+      builder: (context, state) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/auth/register',
+      name: 'register',
+      builder: (context, state) => const RegisterScreen(),
+    ),
+    GoRoute(
+      path: '/auth/forgot-password',
+      name: 'forgot-password',
+      builder: (context, state) => const ForgotPasswordScreen(),
+    ),
+  ],
+);
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(
+    const ProviderScope(
+      child: SheetShowApp(),
+    ),
+  );
+}
+
+class SheetShowApp extends ConsumerWidget {
+  const SheetShowApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp.router(
+      title: 'SheetShow',
+      theme: AppTheme.light,
+      routerConfig: _router,
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
