@@ -35,6 +35,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final searchService = ref.watch(searchServiceProvider);
+    final scoreRepo = ref.watch(scoreRepositoryProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Library'),
@@ -84,12 +86,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           Expanded(
             child: StreamBuilder<List<ScoreModel>>(
               stream: _searchQuery.trim().isNotEmpty
-                  ? ref
-                      .watch(searchServiceProvider)
-                      .searchStream(_searchQuery)
-                  : ref
-                      .watch(scoreRepositoryProvider)
-                      .watchAll(folderId: _selectedFolderId),
+                  ? searchService.searchStream(_searchQuery)
+                  : scoreRepo.watchAll(folderId: _selectedFolderId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
