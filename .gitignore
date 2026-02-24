@@ -5,7 +5,6 @@
 .env.*
 *.secret.*
 secrets/
-**/api_config.dart
 
 # ─── OS artifacts ────────────────────────────────────────────────────────────
 .DS_Store
