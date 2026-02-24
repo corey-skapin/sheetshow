@@ -62,7 +62,14 @@ class ScoreRepository {
   }
 
   Future<void> delete(String id) async {
-    await (_db.delete(_db.scores)..where((s) => s.id.equals(id))).go();
+    await _db.transaction(() async {
+      await (_db.delete(_db.scores)..where((s) => s.id.equals(id))).go();
+      // Also clean up FTS index entry (triggers handle new installs)
+      await _db.customStatement(
+        'DELETE FROM score_search WHERE id = ?',
+        [id],
+      );
+    });
   }
 
   // ─── Tag management ───────────────────────────────────────────────────────

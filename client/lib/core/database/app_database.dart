@@ -118,6 +118,27 @@ class AppDatabase extends _$AppDatabase {
               content_rowid='rowid'
             )
           ''');
+          // Triggers to keep FTS index in sync with scores table
+          await customStatement('''
+            CREATE TRIGGER IF NOT EXISTS scores_ai AFTER INSERT ON scores BEGIN
+              INSERT INTO score_search(rowid, id, title, tags_flat)
+              VALUES (new.rowid, new.id, new.title, '');
+            END
+          ''');
+          await customStatement('''
+            CREATE TRIGGER IF NOT EXISTS scores_ad AFTER DELETE ON scores BEGIN
+              INSERT INTO score_search(score_search, rowid, id, title, tags_flat)
+              VALUES ('delete', old.rowid, old.id, old.title, '');
+            END
+          ''');
+          await customStatement('''
+            CREATE TRIGGER IF NOT EXISTS scores_au AFTER UPDATE ON scores BEGIN
+              INSERT INTO score_search(score_search, rowid, id, title, tags_flat)
+              VALUES ('delete', old.rowid, old.id, old.title, '');
+              INSERT INTO score_search(rowid, id, title, tags_flat)
+              VALUES (new.rowid, new.id, new.title, '');
+            END
+          ''');
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -162,20 +183,22 @@ class AppDatabase extends _$AppDatabase {
 
   // ─── FTS5 helpers ──────────────────────────────────────────────────────────
 
-  /// Upsert the FTS5 index entry for a score.
+  /// Upsert the FTS5 index entry for a score (atomic delete + insert).
   Future<void> rebuildScoreSearch(
     String id,
     String title,
     String tagsFlat,
   ) async {
-    await customStatement(
-      'DELETE FROM score_search WHERE id = ?',
-      [id],
-    );
-    await customStatement(
-      'INSERT INTO score_search(id, title, tags_flat) VALUES (?, ?, ?)',
-      [id, title, tagsFlat],
-    );
+    await transaction(() async {
+      await customStatement(
+        'DELETE FROM score_search WHERE id = ?',
+        [id],
+      );
+      await customStatement(
+        'INSERT INTO score_search(id, title, tags_flat) VALUES (?, ?, ?)',
+        [id, title, tagsFlat],
+      );
+    });
   }
 
   /// Full-text search across title and tags_flat.
