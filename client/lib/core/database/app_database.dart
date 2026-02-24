@@ -107,37 +107,14 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
-          // Create FTS5 virtual table for full-text search
+          // Create standalone FTS5 virtual table for full-text search
           await customStatement('''
             CREATE VIRTUAL TABLE IF NOT EXISTS score_search
             USING fts5(
               id UNINDEXED,
               title,
-              tags_flat,
-              content='scores',
-              content_rowid='rowid'
+              tags_flat
             )
-          ''');
-          // Triggers to keep FTS index in sync with scores table
-          await customStatement('''
-            CREATE TRIGGER IF NOT EXISTS scores_ai AFTER INSERT ON scores BEGIN
-              INSERT INTO score_search(rowid, id, title, tags_flat)
-              VALUES (new.rowid, new.id, new.title, '');
-            END
-          ''');
-          await customStatement('''
-            CREATE TRIGGER IF NOT EXISTS scores_ad AFTER DELETE ON scores BEGIN
-              INSERT INTO score_search(score_search, rowid, id, title, tags_flat)
-              VALUES ('delete', old.rowid, old.id, old.title, '');
-            END
-          ''');
-          await customStatement('''
-            CREATE TRIGGER IF NOT EXISTS scores_au AFTER UPDATE ON scores BEGIN
-              INSERT INTO score_search(score_search, rowid, id, title, tags_flat)
-              VALUES ('delete', old.rowid, old.id, old.title, '');
-              INSERT INTO score_search(rowid, id, title, tags_flat)
-              VALUES (new.rowid, new.id, new.title, '');
-            END
           ''');
         },
         onUpgrade: (m, from, to) async {
@@ -145,33 +122,39 @@ class AppDatabase extends _$AppDatabase {
             // Drop sync infrastructure tables
             await customStatement('DROP TABLE IF EXISTS sync_queue');
             await customStatement('DROP TABLE IF EXISTS sync_meta');
-            // Drop sync columns from core tables (SQLite ALTER TABLE DROP COLUMN)
+            // Drop sync columns from core tables
+            await customStatement('ALTER TABLE scores DROP COLUMN sync_state');
+            await customStatement('ALTER TABLE scores DROP COLUMN cloud_id');
             await customStatement(
-                'ALTER TABLE scores DROP COLUMN IF EXISTS sync_state');
+                'ALTER TABLE scores DROP COLUMN server_version');
+            await customStatement('ALTER TABLE scores DROP COLUMN is_deleted');
+            await customStatement('ALTER TABLE folders DROP COLUMN sync_state');
+            await customStatement('ALTER TABLE folders DROP COLUMN cloud_id');
+            await customStatement('ALTER TABLE folders DROP COLUMN is_deleted');
             await customStatement(
-                'ALTER TABLE scores DROP COLUMN IF EXISTS cloud_id');
+                'ALTER TABLE set_lists DROP COLUMN sync_state');
+            await customStatement('ALTER TABLE set_lists DROP COLUMN cloud_id');
             await customStatement(
-                'ALTER TABLE scores DROP COLUMN IF EXISTS server_version');
+                'ALTER TABLE set_lists DROP COLUMN server_version');
             await customStatement(
-                'ALTER TABLE scores DROP COLUMN IF EXISTS is_deleted');
+                'ALTER TABLE set_lists DROP COLUMN is_deleted');
             await customStatement(
-                'ALTER TABLE folders DROP COLUMN IF EXISTS sync_state');
+                'ALTER TABLE annotation_layers DROP COLUMN sync_state');
             await customStatement(
-                'ALTER TABLE folders DROP COLUMN IF EXISTS cloud_id');
+                'ALTER TABLE annotation_layers DROP COLUMN server_version');
+            // Recreate score_search as standalone FTS5 (was content FTS5)
+            await customStatement('DROP TABLE IF EXISTS score_search');
+            await customStatement('''
+              CREATE VIRTUAL TABLE score_search
+              USING fts5(
+                id UNINDEXED,
+                title,
+                tags_flat
+              )
+            ''');
+            // Rebuild FTS index from existing scores
             await customStatement(
-                'ALTER TABLE folders DROP COLUMN IF EXISTS is_deleted');
-            await customStatement(
-                'ALTER TABLE set_lists DROP COLUMN IF EXISTS sync_state');
-            await customStatement(
-                'ALTER TABLE set_lists DROP COLUMN IF EXISTS cloud_id');
-            await customStatement(
-                'ALTER TABLE set_lists DROP COLUMN IF EXISTS server_version');
-            await customStatement(
-                'ALTER TABLE set_lists DROP COLUMN IF EXISTS is_deleted');
-            await customStatement(
-                'ALTER TABLE annotation_layers DROP COLUMN IF EXISTS sync_state');
-            await customStatement(
-                'ALTER TABLE annotation_layers DROP COLUMN IF EXISTS server_version');
+                'INSERT INTO score_search(id, title, tags_flat) SELECT id, title, \'\' FROM scores');
           }
         },
         beforeOpen: (details) async {
@@ -189,16 +172,14 @@ class AppDatabase extends _$AppDatabase {
     String title,
     String tagsFlat,
   ) async {
-    await transaction(() async {
-      await customStatement(
-        'DELETE FROM score_search WHERE id = ?',
-        [id],
-      );
-      await customStatement(
-        'INSERT INTO score_search(id, title, tags_flat) VALUES (?, ?, ?)',
-        [id, title, tagsFlat],
-      );
-    });
+    await customStatement(
+      'DELETE FROM score_search WHERE id = ?',
+      [id],
+    );
+    await customStatement(
+      'INSERT INTO score_search(id, title, tags_flat) VALUES (?, ?, ?)',
+      [id, title, tagsFlat],
+    );
   }
 
   /// Full-text search across title and tags_flat.
