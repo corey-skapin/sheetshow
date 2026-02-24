@@ -93,8 +93,11 @@ class AnnotationToolbar extends ConsumerWidget {
             label: 'Undo last stroke',
             child: IconButton(
               icon: const Icon(Icons.undo, color: Colors.white),
-              onPressed: () =>
-                  ref.read(annotationServiceProvider.notifier).undoLastStroke(),
+              onPressed: () => ref
+                  .read(annotationServiceProvider(
+                    (scoreId: scoreId, pageNumber: pageNumber),
+                  ).notifier)
+                  .undoLastStroke(),
             ),
           ),
           // Clear all
@@ -174,7 +177,11 @@ class AnnotationToolbar extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(annotationServiceProvider.notifier).clearAll();
+      await ref
+          .read(annotationServiceProvider(
+            (scoreId: scoreId, pageNumber: pageNumber),
+          ).notifier)
+          .clearAll();
     }
   }
 }

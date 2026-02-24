@@ -16,15 +16,22 @@ final toolSettingsProvider = StateProvider<ToolSettings>(
 );
 
 /// Renders existing annotation strokes and captures new ink input.
+///
+/// When [editMode] is false the overlay is read-only: it draws saved strokes
+/// but lets all pointer events pass through to the document viewer below.
 class AnnotationOverlay extends ConsumerStatefulWidget {
   const AnnotationOverlay({
     super.key,
     required this.scoreId,
     required this.pageNumber,
+    this.editMode = false,
   });
 
   final String scoreId;
   final int pageNumber;
+
+  /// When false, pointer events are ignored so scroll/zoom work normally.
+  final bool editMode;
 
   @override
   ConsumerState<AnnotationOverlay> createState() => _AnnotationOverlayState();
@@ -35,42 +42,40 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay> {
   List<NormalisedPoint> _currentStrokePoints = [];
   Size _pageSize = Size.zero;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadAnnotations();
-  }
-
-  Future<void> _loadAnnotations() async {
-    await ref
-        .read(annotationServiceProvider.notifier)
-        .loadPage(widget.scoreId, widget.pageNumber);
-  }
+  AnnotationPageKey get _pageKey =>
+      (scoreId: widget.scoreId, pageNumber: widget.pageNumber);
 
   @override
   Widget build(BuildContext context) {
-    final layer = ref.watch(annotationServiceProvider);
+    final layer = ref.watch(annotationServiceProvider(_pageKey));
     final toolSettings = ref.watch(toolSettingsProvider);
+
+    Widget content = LayoutBuilder(
+      builder: (context, constraints) {
+        _pageSize = Size(constraints.maxWidth, constraints.maxHeight);
+        return CustomPaint(
+          painter: _AnnotationPainter(
+            layer: layer,
+            currentPoints: _currentStrokePoints,
+            renderer: _renderer,
+            pageSize: _pageSize,
+            currentTool: toolSettings,
+          ),
+          child: const SizedBox.expand(),
+        );
+      },
+    );
+
+    if (!widget.editMode) {
+      // Pass all pointer events through to the document viewer.
+      return IgnorePointer(child: content);
+    }
 
     return Listener(
       onPointerDown: (event) => _handlePointerDown(event, toolSettings),
       onPointerMove: (event) => _handlePointerMove(event, toolSettings),
-      onPointerUp: (event) => _handlePointerUp(event, toolSettings, layer),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          _pageSize = Size(constraints.maxWidth, constraints.maxHeight);
-          return CustomPaint(
-            painter: _AnnotationPainter(
-              layer: layer,
-              currentPoints: _currentStrokePoints,
-              renderer: _renderer,
-              pageSize: _pageSize,
-              currentTool: toolSettings,
-            ),
-            child: const SizedBox.expand(),
-          );
-        },
-      ),
+      onPointerUp: (event) => _handlePointerUp(event, toolSettings),
+      child: content,
     );
   }
 
@@ -104,7 +109,6 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay> {
   Future<void> _handlePointerUp(
     PointerUpEvent event,
     ToolSettings settings,
-    AnnotationLayer? currentLayer,
   ) async {
     if (_currentStrokePoints.isEmpty) return;
 
@@ -120,7 +124,9 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay> {
 
     setState(() => _currentStrokePoints = []);
 
-    await ref.read(annotationServiceProvider.notifier).addStroke(stroke);
+    await ref
+        .read(annotationServiceProvider(_pageKey).notifier)
+        .addStroke(stroke);
   }
 }
 

@@ -5,7 +5,6 @@ import 'package:sheetshow/core/theme/app_colors.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 import 'package:sheetshow/features/reader/models/reader_args.dart';
-import 'package:sheetshow/features/reader/ui/annotation_overlay.dart';
 import 'package:sheetshow/features/reader/ui/annotation_toolbar.dart';
 import 'package:sheetshow/features/reader/ui/pdf_page_view.dart';
 
@@ -36,7 +35,13 @@ class ReaderScreen extends ConsumerStatefulWidget {
 
 class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   ScoreModel? _score;
-  bool _annotationMode = false;
+
+  /// Whether the annotation layer is rendered over the document.
+  bool _annotationsVisible = true;
+
+  /// Whether the user is in edit mode (can draw new strokes).
+  bool _editMode = false;
+
   int _currentPage = 1;
 
   @override
@@ -100,21 +105,41 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                   hasNext ? () => _navigateTo(widget.currentIndex + 1) : null,
             ),
           ],
+          // Show/hide annotation overlay
           IconButton(
             icon: Icon(
-              _annotationMode ? Icons.edit_off : Icons.edit,
-              color: _annotationMode ? AppColors.primary : Colors.white,
+              _annotationsVisible ? Icons.visibility : Icons.visibility_off,
+              color: _annotationsVisible ? AppColors.primary : Colors.white,
             ),
-            tooltip: _annotationMode ? 'Exit Annotation' : 'Annotate',
-            onPressed: () => setState(() => _annotationMode = !_annotationMode),
+            tooltip:
+                _annotationsVisible ? 'Hide Annotations' : 'Show Annotations',
+            onPressed: () => setState(() {
+              _annotationsVisible = !_annotationsVisible;
+              // Exit edit mode when hiding annotations.
+              if (!_annotationsVisible) _editMode = false;
+            }),
+          ),
+          // Enter / exit annotation edit mode
+          IconButton(
+            icon: Icon(
+              _editMode ? Icons.edit_off : Icons.edit,
+              color: _editMode ? AppColors.primary : Colors.white,
+            ),
+            tooltip: _editMode ? 'Exit Edit Mode' : 'Edit Annotations',
+            onPressed: _annotationsVisible
+                ? () => setState(() => _editMode = !_editMode)
+                : null,
           ),
         ],
       ),
       body: Stack(
         children: [
-          // PDF viewer
+          // PDF viewer with annotation overlays anchored to each page.
           PdfPageView(
             filePath: score.localFilePath,
+            scoreId: score.id,
+            annotationsVisible: _annotationsVisible,
+            editMode: _editMode,
             onPageChanged: (page, total) {
               if (mounted) {
                 setState(() {
@@ -123,14 +148,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               }
             },
           ),
-          // Annotation overlay
-          if (_annotationMode)
-            AnnotationOverlay(
-              scoreId: score.id,
-              pageNumber: _currentPage,
-            ),
-          // Annotation toolbar
-          if (_annotationMode)
+          // Annotation toolbar — only shown in edit mode.
+          if (_editMode)
             Positioned(
               bottom: 0,
               left: 0,
