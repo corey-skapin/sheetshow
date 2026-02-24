@@ -26,13 +26,16 @@ class ScoreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Semantics(
       label:
           'Score: ${score.title}. ${tags.isEmpty ? '' : 'Tags: ${tags.join(', ')}'}',
       button: true,
       child: Card(
         clipBehavior: Clip.antiAlias,
-        color: isSelected ? AppColors.surfaceVariant : AppColors.surface,
+        color: isSelected
+            ? colorScheme.surfaceContainerHighest
+            : colorScheme.surface,
         child: InkWell(
           onTap: onTap,
           child: Column(
@@ -40,7 +43,7 @@ class ScoreCard extends StatelessWidget {
             children: [
               // Thumbnail
               Expanded(
-                child: _buildThumbnail(),
+                child: _buildThumbnail(colorScheme),
               ),
               // Title + sync badge
               Padding(
@@ -96,25 +99,25 @@ class ScoreCard extends StatelessWidget {
     );
   }
 
-  Widget _buildThumbnail() {
+  Widget _buildThumbnail(ColorScheme colorScheme) {
     final thumbPath = score.thumbnailPath;
     if (thumbPath != null) {
       return Image.file(
         File(thumbPath),
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _placeholder(),
+        errorBuilder: (_, __, ___) => _placeholder(colorScheme),
       );
     }
-    return _placeholder();
+    return _placeholder(colorScheme);
   }
 
-  Widget _placeholder() => Container(
-        color: AppColors.surfaceVariant,
-        child: const Center(
+  Widget _placeholder(ColorScheme colorScheme) => Container(
+        color: colorScheme.surfaceContainerHighest,
+        child: Center(
           child: Icon(
             Icons.music_note,
             size: 48,
-            color: AppColors.onSurfaceVariant,
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
       );
