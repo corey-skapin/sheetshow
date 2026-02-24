@@ -149,8 +149,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// CORS — allow any localhost origin in Development only (http or https, any port)
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors();
+}
+
 app.UseHttpsRedirection();
-app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();

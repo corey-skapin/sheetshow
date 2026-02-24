@@ -186,8 +186,7 @@ void main() {
         final stroke = InkStroke.fromJson(json);
         final after = DateTime.now();
         expect(
-          stroke.createdAt
-              .isAfter(before.subtract(const Duration(seconds: 1))),
+          stroke.createdAt.isAfter(before.subtract(const Duration(seconds: 1))),
           isTrue,
         );
         expect(

@@ -54,9 +54,10 @@ jobs:
         env:
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=sheetshow_test;Username=sheetshow;Password=sheetshow_dev"
         run: |
-          dotnet test --no-build -c Release \
+          dotnet test tests/SheetShow.UnitTests --no-build -c Release \
             --collect:"XPlat Code Coverage" \
             --results-directory ./coverage
+          dotnet test tests/SheetShow.IntegrationTests --no-build -c Release
 
       - name: Coverage gate (>= 80%)
         run: |

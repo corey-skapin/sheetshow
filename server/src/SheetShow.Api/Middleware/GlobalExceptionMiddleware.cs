@@ -37,7 +37,7 @@ public sealed class GlobalExceptionMiddleware
     {
         var (status, title, type) = exception switch
         {
-            UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Unauthorized", "https://httpstatuses.com/401"),
+            UnauthorizedAccessException => (HttpStatusCode.Forbidden, "Forbidden", "https://httpstatuses.com/403"),
             ArgumentException or InvalidOperationException => (HttpStatusCode.BadRequest, "Bad Request", "https://httpstatuses.com/400"),
             KeyNotFoundException => (HttpStatusCode.NotFound, "Not Found", "https://httpstatuses.com/404"),
             _ => (HttpStatusCode.InternalServerError, "Internal Server Error", "https://httpstatuses.com/500"),

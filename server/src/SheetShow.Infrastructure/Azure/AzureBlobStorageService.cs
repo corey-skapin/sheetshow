@@ -60,10 +60,10 @@ public sealed class AzureBlobStorageService : IFileStorageService
     }
 
     /// <inheritdoc/>
-    public Task DeleteAsync(string blobPath, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(string blobPath, CancellationToken cancellationToken = default)
     {
-        // Soft-delete: Azure lifecycle management handles hard delete after TombstoneDays
-        // No action needed client-side; lifecycle policy on the container handles cleanup
-        return Task.CompletedTask;
+        var container = _blobServiceClient.GetBlobContainerClient(ContainerName);
+        var blobClient = container.GetBlobClient(blobPath);
+        await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
     }
 }
