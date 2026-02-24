@@ -13,7 +13,10 @@ class SetListsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Set Lists')),
+      appBar: AppBar(
+        title: const Text('Set Lists'),
+        leading: BackButton(onPressed: () => context.go('/library')),
+      ),
       body: StreamBuilder<List<SetListModel>>(
         stream: ref.watch(setListRepositoryProvider).watchAll(),
         builder: (context, snapshot) {
