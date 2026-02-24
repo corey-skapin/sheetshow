@@ -16,61 +16,69 @@ import 'package:sheetshow/features/setlists/ui/set_lists_screen.dart';
 
 // T020: App entry point — Riverpod ProviderScope + GoRouter routing skeleton.
 
-final _router = GoRouter(
-  initialLocation: '/library',
-  routes: [
-    GoRoute(
-      path: '/library',
-      name: 'library',
-      builder: (context, state) => const LibraryScreen(),
-    ),
-    GoRoute(
-      path: '/reader/:scoreId',
-      name: 'reader',
-      builder: (context, state) {
-        final score = state.extra as ScoreModel?;
-        final scoreId = state.pathParameters['scoreId']!;
-        return ReaderScreen(scoreId: scoreId, score: score);
-      },
-    ),
-    GoRoute(
-      path: '/setlists',
-      name: 'setlists',
-      builder: (context, state) => const SetListsScreen(),
-    ),
-    GoRoute(
-      path: '/setlists/:id/builder',
-      name: 'setlist-builder',
-      builder: (context, state) {
-        final setListId = state.pathParameters['id']!;
-        return SetListBuilderScreen(setListId: setListId);
-      },
-    ),
-    GoRoute(
-      path: '/setlists/:id/performance',
-      name: 'setlist-performance',
-      builder: (context, state) {
-        final setListId = state.pathParameters['id']!;
-        return PerformanceModeScreen(setListId: setListId);
-      },
-    ),
-    GoRoute(
-      path: '/auth/login',
-      name: 'login',
-      builder: (context, state) => const LoginScreen(),
-    ),
-    GoRoute(
-      path: '/auth/register',
-      name: 'register',
-      builder: (context, state) => const RegisterScreen(),
-    ),
-    GoRoute(
-      path: '/auth/forgot-password',
-      name: 'forgot-password',
-      builder: (context, state) => const ForgotPasswordScreen(),
-    ),
-  ],
-);
+/// Provides the app's [GoRouter] instance within the current [ProviderScope].
+///
+/// Creating the router here (instead of at module level) ensures that any
+/// [GoRouter.redirect] callback can safely read Riverpod providers via [ref].
+final goRouterProvider = Provider<GoRouter>((ref) {
+  final router = GoRouter(
+    initialLocation: '/library',
+    routes: [
+      GoRoute(
+        path: '/library',
+        name: 'library',
+        builder: (context, state) => const LibraryScreen(),
+      ),
+      GoRoute(
+        path: '/reader/:scoreId',
+        name: 'reader',
+        builder: (context, state) {
+          final score = state.extra as ScoreModel?;
+          final scoreId = state.pathParameters['scoreId']!;
+          return ReaderScreen(scoreId: scoreId, score: score);
+        },
+      ),
+      GoRoute(
+        path: '/setlists',
+        name: 'setlists',
+        builder: (context, state) => const SetListsScreen(),
+      ),
+      GoRoute(
+        path: '/setlists/:id/builder',
+        name: 'setlist-builder',
+        builder: (context, state) {
+          final setListId = state.pathParameters['id']!;
+          return SetListBuilderScreen(setListId: setListId);
+        },
+      ),
+      GoRoute(
+        path: '/setlists/:id/performance',
+        name: 'setlist-performance',
+        builder: (context, state) {
+          final setListId = state.pathParameters['id']!;
+          return PerformanceModeScreen(setListId: setListId);
+        },
+      ),
+      GoRoute(
+        path: '/auth/login',
+        name: 'login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/auth/register',
+        name: 'register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/auth/forgot-password',
+        name: 'forgot-password',
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+    ],
+  );
+  ref.onDispose(router.dispose);
+  return router;
+});
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -91,10 +99,11 @@ class SheetShowApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(goRouterProvider);
     return MaterialApp.router(
       title: 'SheetShow',
       theme: AppTheme.light,
-      routerConfig: _router,
+      routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
   }
