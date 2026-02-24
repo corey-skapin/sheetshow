@@ -122,6 +122,7 @@ void main() {
           'id': 'folder-2',
           'name': 'Baroque',
           'parentFolderId': 'parent-1',
+          'cloudId': 'cloud-folder-2',
           'createdAt': now.toIso8601String(),
           'updatedAt': now.toIso8601String(),
         };
@@ -130,7 +131,7 @@ void main() {
         expect(folder.name, 'Baroque');
         expect(folder.parentFolderId, 'parent-1');
         expect(folder.syncState, SyncState.synced);
-        expect(folder.cloudId, 'folder-2');
+        expect(folder.cloudId, 'cloud-folder-2');
       });
 
       test('handles missing optional fields', () {

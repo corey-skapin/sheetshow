@@ -152,9 +152,10 @@ void main() {
           'filename': 'chopin.pdf',
           'totalPages': 8,
           'folderId': 'folder-1',
+          'cloudId': 'cloud-score-2',
           'updatedAt': now.toIso8601String(),
           'createdAt': now.toIso8601String(),
-          'version': 3,
+          'serverVersion': 3,
         };
         final score = ScoreModel.fromJson(json);
         expect(score.id, 'score-2');
@@ -163,7 +164,7 @@ void main() {
         expect(score.totalPages, 8);
         expect(score.folderId, 'folder-1');
         expect(score.syncState, SyncState.synced);
-        expect(score.cloudId, 'score-2');
+        expect(score.cloudId, 'cloud-score-2');
         expect(score.serverVersion, 3);
         expect(score.localFilePath, '');
       });
