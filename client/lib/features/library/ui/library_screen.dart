@@ -9,6 +9,7 @@ import 'package:sheetshow/features/library/services/import_service.dart';
 import 'package:sheetshow/features/library/ui/score_card.dart';
 import 'package:sheetshow/features/library/ui/folder_tree.dart';
 import 'package:sheetshow/features/library/ui/score_detail_sheet.dart';
+import 'package:sheetshow/features/reader/models/reader_args.dart';
 
 // T039: LibraryScreen — reactive grid of scores with import FAB, folder sidebar, search bar.
 
@@ -93,10 +94,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 }
                 return _ScoreGrid(
                   scores: scores,
-                  onTap: (score) => context.go(
-                    '/reader/${score.id}',
-                    extra: score,
-                  ),
+                  onTap: (score) {
+                    final index = scores.indexOf(score);
+                    context.push(
+                      '/reader/${score.id}',
+                      extra: ReaderArgs(
+                        score: score,
+                        scores: scores,
+                        currentIndex: index,
+                      ),
+                    );
+                  },
                   onLongPress: (score) => _showContextMenu(score),
                 );
               },
