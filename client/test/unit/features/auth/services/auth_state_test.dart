@@ -13,7 +13,8 @@ void main() {
     });
 
     test('given_profile_when_created_then_isAuthenticated', () {
-      const profile = UserProfile(userId: 'u-1', email: 'a@b.com', displayName: 'Alice');
+      const profile =
+          UserProfile(userId: 'u-1', email: 'a@b.com', displayName: 'Alice');
       const state = AuthState(userProfile: profile);
       expect(state.isAuthenticated, isTrue);
     });
@@ -35,8 +36,10 @@ void main() {
 
     test('given_state_when_copyWithProfile_then_setsProfile', () {
       const state = AuthState();
-      const profile = UserProfile(userId: 'u-2', email: 'b@c.com', displayName: 'Bob');
-      final withProfile = state.copyWith(userProfile: profile, isLoading: false);
+      const profile =
+          UserProfile(userId: 'u-2', email: 'b@c.com', displayName: 'Bob');
+      final withProfile =
+          state.copyWith(userProfile: profile, isLoading: false);
       expect(withProfile.isAuthenticated, isTrue);
       expect(withProfile.userProfile!.userId, 'u-2');
     });
@@ -48,8 +51,10 @@ void main() {
       expect(cleared.error, isNull);
     });
 
-    test('given_stateWithProfile_when_copyWithNoArgs_then_preservesProfile', () {
-      const profile = UserProfile(userId: 'u-3', email: 'c@d.com', displayName: 'Carol');
+    test('given_stateWithProfile_when_copyWithNoArgs_then_preservesProfile',
+        () {
+      const profile =
+          UserProfile(userId: 'u-3', email: 'c@d.com', displayName: 'Carol');
       const state = AuthState(userProfile: profile, isLoading: false);
       final copy = state.copyWith();
       expect(copy.userProfile, profile);

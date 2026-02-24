@@ -46,7 +46,8 @@ void main() {
       );
     });
 
-    test('given_409_when_get_then_throwsAppExceptionWithConflictCode', () async {
+    test('given_409_when_get_then_throwsAppExceptionWithConflictCode',
+        () async {
       final client = _clientWith(409);
       expect(
         () => client.get('/test'),
@@ -87,7 +88,8 @@ void main() {
         final body = jsonDecode(req.body) as Map;
         return http.Response('{"echo":"${body["msg"]}"}', 200);
       });
-      final client = ApiClient(tokenStorage: () async => null, httpClient: mock);
+      final client =
+          ApiClient(tokenStorage: () async => null, httpClient: mock);
       final result = await client.post('/echo', {'msg': 'hello'});
       expect(result['echo'], 'hello');
     });
@@ -125,7 +127,8 @@ void main() {
         capturedAuth = req.headers['Authorization'];
         return http.Response('{}', 200);
       });
-      final client = ApiClient(tokenStorage: () async => null, httpClient: mock);
+      final client =
+          ApiClient(tokenStorage: () async => null, httpClient: mock);
       await client.get('/open');
       expect(capturedAuth, isNull);
     });

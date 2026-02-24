@@ -27,7 +27,11 @@ void main() {
 
   group('ConflictDetector.processResults', () {
     test('given_noConflicts_when_processed_then_returnsEmpty', () {
-      final ops = [_entry(entityType: SyncEntityType.score, operation: SyncOperationType.update)];
+      final ops = [
+        _entry(
+            entityType: SyncEntityType.score,
+            operation: SyncOperationType.update)
+      ];
       final results = [
         {'status': 'accepted'}
       ];
@@ -59,11 +63,20 @@ void main() {
       expect(conflicts.first.serverVersion, 3);
     });
 
-    test('given_multipleResults_when_oneConflict_then_returnsSingleConflict', () {
+    test('given_multipleResults_when_oneConflict_then_returnsSingleConflict',
+        () {
       final ops = [
-        _entry(entityType: SyncEntityType.score, operation: SyncOperationType.create),
-        _entry(entityType: SyncEntityType.score, operation: SyncOperationType.update, entityId: 'e-2'),
-        _entry(entityType: SyncEntityType.score, operation: SyncOperationType.update, entityId: 'e-3'),
+        _entry(
+            entityType: SyncEntityType.score,
+            operation: SyncOperationType.create),
+        _entry(
+            entityType: SyncEntityType.score,
+            operation: SyncOperationType.update,
+            entityId: 'e-2'),
+        _entry(
+            entityType: SyncEntityType.score,
+            operation: SyncOperationType.update,
+            entityId: 'e-3'),
       ];
       final results = [
         {'status': 'accepted'},
@@ -75,8 +88,13 @@ void main() {
       expect(conflicts.first.entityId, 'e-2');
     });
 
-    test('given_resultsLongerThanOps_when_processed_then_clampsToOpsLength', () {
-      final ops = [_entry(entityType: SyncEntityType.score, operation: SyncOperationType.update)];
+    test('given_resultsLongerThanOps_when_processed_then_clampsToOpsLength',
+        () {
+      final ops = [
+        _entry(
+            entityType: SyncEntityType.score,
+            operation: SyncOperationType.update)
+      ];
       final results = [
         {'status': 'conflict', 'serverPayload': '{}', 'serverVersion': 1},
         {'status': 'conflict', 'serverPayload': '{}', 'serverVersion': 2},
@@ -85,7 +103,11 @@ void main() {
     });
 
     test('given_conflictWithNullPayloads_when_processed_then_usesDefaults', () {
-      final ops = [_entry(entityType: SyncEntityType.score, operation: SyncOperationType.update)];
+      final ops = [
+        _entry(
+            entityType: SyncEntityType.score,
+            operation: SyncOperationType.update)
+      ];
       final results = [
         {'status': 'conflict'}
       ];
@@ -102,43 +124,69 @@ void main() {
 
   group('ConflictDetector._inferConflictType', () {
     test('given_deleteOperation_when_processed_then_deleteVsUpdate', () {
-      final ops = [_entry(entityType: SyncEntityType.score, operation: SyncOperationType.delete)];
+      final ops = [
+        _entry(
+            entityType: SyncEntityType.score,
+            operation: SyncOperationType.delete)
+      ];
       final results = [
         {'status': 'conflict', 'serverPayload': '{}', 'serverVersion': 1}
       ];
-      expect(detector.processResults(ops, results).first.conflictType, ConflictType.deleteVsUpdate);
+      expect(detector.processResults(ops, results).first.conflictType,
+          ConflictType.deleteVsUpdate);
     });
 
-    test('given_annotationLayer_when_updateConflict_then_annotationModified', () {
-      final ops = [_entry(entityType: SyncEntityType.annotationLayer, operation: SyncOperationType.update)];
+    test('given_annotationLayer_when_updateConflict_then_annotationModified',
+        () {
+      final ops = [
+        _entry(
+            entityType: SyncEntityType.annotationLayer,
+            operation: SyncOperationType.update)
+      ];
       final results = [
         {'status': 'conflict', 'serverPayload': '{}', 'serverVersion': 1}
       ];
-      expect(detector.processResults(ops, results).first.conflictType, ConflictType.annotationModified);
+      expect(detector.processResults(ops, results).first.conflictType,
+          ConflictType.annotationModified);
     });
 
     test('given_setList_when_updateConflict_then_setListModified', () {
-      final ops = [_entry(entityType: SyncEntityType.setList, operation: SyncOperationType.update)];
+      final ops = [
+        _entry(
+            entityType: SyncEntityType.setList,
+            operation: SyncOperationType.update)
+      ];
       final results = [
         {'status': 'conflict', 'serverPayload': '{}', 'serverVersion': 1}
       ];
-      expect(detector.processResults(ops, results).first.conflictType, ConflictType.setListModified);
+      expect(detector.processResults(ops, results).first.conflictType,
+          ConflictType.setListModified);
     });
 
     test('given_setListEntry_when_updateConflict_then_setListModified', () {
-      final ops = [_entry(entityType: SyncEntityType.setListEntry, operation: SyncOperationType.update)];
+      final ops = [
+        _entry(
+            entityType: SyncEntityType.setListEntry,
+            operation: SyncOperationType.update)
+      ];
       final results = [
         {'status': 'conflict', 'serverPayload': '{}', 'serverVersion': 1}
       ];
-      expect(detector.processResults(ops, results).first.conflictType, ConflictType.setListModified);
+      expect(detector.processResults(ops, results).first.conflictType,
+          ConflictType.setListModified);
     });
 
     test('given_folder_when_updateConflict_then_metadataModified', () {
-      final ops = [_entry(entityType: SyncEntityType.folder, operation: SyncOperationType.update)];
+      final ops = [
+        _entry(
+            entityType: SyncEntityType.folder,
+            operation: SyncOperationType.update)
+      ];
       final results = [
         {'status': 'conflict', 'serverPayload': '{}', 'serverVersion': 1}
       ];
-      expect(detector.processResults(ops, results).first.conflictType, ConflictType.metadataModified);
+      expect(detector.processResults(ops, results).first.conflictType,
+          ConflictType.metadataModified);
     });
   });
 }

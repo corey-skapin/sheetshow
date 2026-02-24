@@ -31,7 +31,8 @@ class _FakeTokenStorage extends TokenStorageService {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 ApiClient _apiWith(int statusCode, Map<String, dynamic> body) {
-  final mock = MockClient((_) async => http.Response(jsonEncode(body), statusCode));
+  final mock =
+      MockClient((_) async => http.Response(jsonEncode(body), statusCode));
   return ApiClient(tokenStorage: () async => null, httpClient: mock);
 }
 
@@ -93,7 +94,8 @@ void main() {
 
     test('given_serverError_when_register_then_setsError', () async {
       final s = _service(_apiWith(400, {}));
-      await expectLater(() => s.register('a@b.com', 'pw', 'Alice'), throwsA(anything));
+      await expectLater(
+          () => s.register('a@b.com', 'pw', 'Alice'), throwsA(anything));
       expect(s.state.error, isNotNull);
     });
   });
@@ -115,7 +117,8 @@ void main() {
         tokenStorage: () async => 'at',
         httpClient: MockClient((_) async => http.Response('', 401)),
       );
-      final s2 = AuthService(apiClient: logoutApi, tokenStorage: s.tokenStorage);
+      final s2 =
+          AuthService(apiClient: logoutApi, tokenStorage: s.tokenStorage);
       s2.state = s.state; // copy authenticated state
       await s2.logout();
       expect(s2.state.isAuthenticated, isFalse);
@@ -157,7 +160,8 @@ void main() {
 
     test('given_validData_when_resetPassword_then_completes', () async {
       final s = _service(_apiWith(200, {}));
-      await expectLater(() => s.resetPassword('a@b.com', 'token123', 'newPass'), returnsNormally);
+      await expectLater(() => s.resetPassword('a@b.com', 'token123', 'newPass'),
+          returnsNormally);
     });
   });
 }

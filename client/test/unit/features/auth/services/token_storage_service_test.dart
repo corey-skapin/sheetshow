@@ -28,7 +28,8 @@ void main() {
             store.remove(args['key'] as String);
             return null;
           default:
-            throw PlatformException(code: 'UNIMPLEMENTED', message: call.method);
+            throw PlatformException(
+                code: 'UNIMPLEMENTED', message: call.method);
         }
       },
     );
@@ -104,7 +105,8 @@ void main() {
       expect(await service.getAccessToken(), isNull);
     });
 
-    test('given_savedToken_when_getAccessToken_then_returnsAccessToken', () async {
+    test('given_savedToken_when_getAccessToken_then_returnsAccessToken',
+        () async {
       final token = AuthToken(
         accessToken: 'my-at',
         refreshToken: 'rt',
