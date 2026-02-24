@@ -189,7 +189,7 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
       ),
     );
     if (confirmed == true) {
-      await ref.read(scoreRepositoryProvider).softDelete(widget.score.id);
+      await ref.read(scoreRepositoryProvider).delete(widget.score.id);
       if (mounted) Navigator.of(context).pop();
     }
   }

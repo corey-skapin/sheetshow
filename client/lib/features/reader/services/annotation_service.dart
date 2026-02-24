@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/features/reader/models/ink_stroke.dart';
 import 'package:sheetshow/features/reader/models/annotation_layer.dart';
 import 'package:sheetshow/features/reader/repositories/annotation_repository.dart';
@@ -50,7 +49,6 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
     if (current == null) return;
     final updated = current.copyWith(
       strokes: [],
-      syncState: SyncState.pendingUpdate,
       updatedAt: DateTime.now(),
     );
     state = updated;
@@ -69,12 +67,10 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
         pageNumber: _pageNumber,
         strokes: strokes,
         updatedAt: now,
-        syncState: SyncState.pendingUpdate,
       );
     }
     return current.copyWith(
       strokes: strokes,
-      syncState: SyncState.pendingUpdate,
       updatedAt: now,
     );
   }

@@ -1,13 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:sheetshow/core/models/enums.dart';
-import 'package:sheetshow/core/theme/app_colors.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/core/theme/app_typography.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
-
-// T038: ScoreCard widget — shows thumbnail, title, sync badge, and tags.
 
 /// Card displayed in the library grid for a single score.
 class ScoreCard extends StatelessWidget {
@@ -45,26 +41,19 @@ class ScoreCard extends StatelessWidget {
               Expanded(
                 child: _buildThumbnail(colorScheme),
               ),
-              // Title + sync badge
+              // Title
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.sm,
                   vertical: AppSpacing.xs,
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        score.title,
-                        style: AppTypography.bodySmall.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    _SyncBadge(state: score.syncState),
-                  ],
+                child: Text(
+                  score.title,
+                  style: AppTypography.bodySmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               // Tags row
@@ -121,35 +110,4 @@ class ScoreCard extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _SyncBadge extends StatelessWidget {
-  const _SyncBadge({required this.state});
-
-  final SyncState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final (icon, color, label) = switch (state) {
-      SyncState.synced => (
-          Icons.cloud_done_outlined,
-          AppColors.syncSynced,
-          'Synced'
-        ),
-      SyncState.pendingUpload ||
-      SyncState.pendingUpdate ||
-      SyncState.pendingDelete =>
-        (Icons.cloud_upload_outlined, AppColors.syncPending, 'Pending sync'),
-      SyncState.conflict => (
-          Icons.warning_amber_outlined,
-          AppColors.syncConflict,
-          'Conflict'
-        ),
-    };
-
-    return Semantics(
-      label: label,
-      child: Icon(icon, size: 16, color: color),
-    );
-  }
 }

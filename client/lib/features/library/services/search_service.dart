@@ -38,7 +38,7 @@ class SearchService {
     final scores = <ScoreModel>[];
     for (final id in ids) {
       final score = await _scoreRepository.getById(id);
-      if (score != null && !score.isDeleted) scores.add(score);
+      if (score != null) scores.add(score);
     }
     yield scores;
   }

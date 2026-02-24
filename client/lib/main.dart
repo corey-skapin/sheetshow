@@ -3,20 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sheetshow/core/services/api_client.dart';
 import 'package:sheetshow/core/theme/app_theme.dart';
-import 'package:sheetshow/features/auth/services/token_storage_service.dart';
-import 'package:sheetshow/features/auth/ui/forgot_password_screen.dart';
-import 'package:sheetshow/features/auth/ui/login_screen.dart';
-import 'package:sheetshow/features/auth/ui/register_screen.dart';
 import 'package:sheetshow/features/library/ui/library_screen.dart';
 import 'package:sheetshow/features/reader/models/reader_args.dart';
 import 'package:sheetshow/features/reader/ui/reader_screen.dart';
 import 'package:sheetshow/features/setlists/ui/performance_mode_screen.dart';
 import 'package:sheetshow/features/setlists/ui/set_list_builder.dart';
 import 'package:sheetshow/features/setlists/ui/set_lists_screen.dart';
-
-// T020: App entry point — Riverpod ProviderScope + GoRouter routing skeleton.
 
 final _router = GoRouter(
   initialLocation: '/library',
@@ -61,21 +54,6 @@ final _router = GoRouter(
         return PerformanceModeScreen(setListId: setListId);
       },
     ),
-    GoRoute(
-      path: '/auth/login',
-      name: 'login',
-      builder: (context, state) => const LoginScreen(),
-    ),
-    GoRoute(
-      path: '/auth/register',
-      name: 'register',
-      builder: (context, state) => const RegisterScreen(),
-    ),
-    GoRoute(
-      path: '/auth/forgot-password',
-      name: 'forgot-password',
-      builder: (context, state) => const ForgotPasswordScreen(),
-    ),
   ],
 );
 
@@ -86,13 +64,8 @@ void main() {
     () {
       WidgetsFlutterBinding.ensureInitialized();
       runApp(
-        ProviderScope(
-          overrides: [
-            tokenLoaderProvider.overrideWith(
-              (ref) => ref.read(tokenStorageServiceProvider).getAccessToken,
-            ),
-          ],
-          child: const SheetShowApp(),
+        const ProviderScope(
+          child: SheetShowApp(),
         ),
       );
     },

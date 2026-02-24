@@ -2,11 +2,8 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sheetshow/core/database/app_database.dart';
-import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/features/setlists/models/set_list_entry_model.dart';
 import 'package:sheetshow/features/setlists/models/set_list_model.dart';
-
-// T059: SetListRepository — Drift DAO for set list management.
 
 /// Client-side set list repository with ordered entry management.
 class SetListRepository {
@@ -18,7 +15,6 @@ class SetListRepository {
 
   Stream<List<SetListModel>> watchAll() {
     return (_db.select(_db.setLists)
-          ..where((sl) => sl.isDeleted.equals(false))
           ..orderBy([(sl) => OrderingTerm.desc(sl.updatedAt)]))
         .watch()
         .asyncMap((rows) async {
@@ -44,10 +40,6 @@ class SetListRepository {
             name: setList.name,
             createdAt: setList.createdAt,
             updatedAt: setList.updatedAt,
-            syncState: Value(setList.syncState),
-            cloudId: Value(setList.cloudId),
-            serverVersion: Value(setList.serverVersion),
-            isDeleted: Value(setList.isDeleted),
           ),
         );
   }
@@ -57,21 +49,14 @@ class SetListRepository {
         .write(SetListsCompanion(
       name: Value(name),
       updatedAt: Value(DateTime.now()),
-      syncState: const Value(SyncState.pendingUpdate),
     ));
   }
 
-  Future<void> softDelete(String id) async {
-    await (_db.update(_db.setLists)..where((sl) => sl.id.equals(id)))
-        .write(SetListsCompanion(
-      isDeleted: const Value(true),
-      updatedAt: Value(DateTime.now()),
-      syncState: const Value(SyncState.pendingDelete),
-    ));
+  Future<void> delete(String id) async {
+    await (_db.delete(_db.setLists)..where((sl) => sl.id.equals(id))).go();
   }
 
   Future<void> addEntry(String setListId, String scoreId) async {
-    // Get next order index
     final entries = await (_db.select(_db.setListEntries)
           ..where((e) => e.setListId.equals(setListId))
           ..orderBy([(e) => OrderingTerm.desc(e.orderIndex)]))
@@ -117,11 +102,6 @@ class SetListRepository {
     });
   }
 
-  Future<void> updateSyncState(String id, SyncState state) async {
-    await (_db.update(_db.setLists)..where((sl) => sl.id.equals(id)))
-        .write(SetListsCompanion(syncState: Value(state)));
-  }
-
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   Future<SetListModel> _loadWithEntries(SetList row) async {
@@ -136,10 +116,6 @@ class SetListRepository {
       entries: entryRows.map(_mapEntry).toList(),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      syncState: row.syncState,
-      cloudId: row.cloudId,
-      serverVersion: row.serverVersion,
-      isDeleted: row.isDeleted,
     );
   }
 
@@ -153,10 +129,7 @@ class SetListRepository {
 
   Future<void> _touchSetList(String id) async {
     await (_db.update(_db.setLists)..where((sl) => sl.id.equals(id)))
-        .write(SetListsCompanion(
-      updatedAt: Value(DateTime.now()),
-      syncState: const Value(SyncState.pendingUpdate),
-    ));
+        .write(SetListsCompanion(updatedAt: Value(DateTime.now())));
   }
 }
 

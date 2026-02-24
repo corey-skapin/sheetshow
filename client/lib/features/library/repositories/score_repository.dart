@@ -1,10 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetshow/core/database/app_database.dart';
-import 'package:sheetshow/core/models/enums.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
-
-// T035: ScoreRepository (client) — Drift DAO for score CRUD and sync state management.
 
 /// Client-side score repository backed by Drift/SQLite.
 class ScoreRepository {
@@ -14,10 +11,9 @@ class ScoreRepository {
 
   // ─── Watch ────────────────────────────────────────────────────────────────
 
-  /// Reactive stream of all non-deleted scores, newest first.
+  /// Reactive stream of all scores, newest first.
   Stream<List<ScoreModel>> watchAll({String? folderId}) {
-    final query = _db.select(_db.scores)
-      ..where((s) => s.isDeleted.equals(false));
+    final query = _db.select(_db.scores);
     if (folderId != null) {
       query.where((s) => s.folderId.equals(folderId));
     }
@@ -49,10 +45,6 @@ class ScoreRepository {
             folderId: Value(score.folderId),
             importedAt: score.importedAt,
             updatedAt: score.updatedAt,
-            syncState: Value(score.syncState),
-            cloudId: Value(score.cloudId),
-            serverVersion: Value(score.serverVersion),
-            isDeleted: Value(score.isDeleted),
           ),
         );
     await _db.rebuildScoreSearch(score.id, score.title, '');
@@ -65,53 +57,21 @@ class ScoreRepository {
       folderId: Value(score.folderId),
       thumbnailPath: Value(score.thumbnailPath),
       updatedAt: Value(DateTime.now()),
-      syncState: Value(score.syncState),
-      cloudId: Value(score.cloudId),
-      serverVersion: Value(score.serverVersion),
     ));
     await _db.rebuildScoreSearch(score.id, score.title, '');
   }
 
-  Future<void> softDelete(String id) async {
-    await (_db.update(_db.scores)..where((s) => s.id.equals(id)))
-        .write(ScoresCompanion(
-      isDeleted: const Value(true),
-      updatedAt: Value(DateTime.now()),
-      syncState: const Value(SyncState.pendingDelete),
-    ));
-  }
-
-  Future<void> updateSyncState(
-    String id,
-    SyncState state, {
-    String? cloudId,
-    int? serverVersion,
-  }) async {
-    await (_db.update(_db.scores)..where((s) => s.id.equals(id)))
-        .write(ScoresCompanion(
-      syncState: Value(state),
-      cloudId: cloudId != null ? Value(cloudId) : const Value.absent(),
-      serverVersion:
-          serverVersion != null ? Value(serverVersion) : const Value.absent(),
-      updatedAt: Value(DateTime.now()),
-    ));
-  }
-
-  Future<void> updateCloudId(
-      String id, String cloudId, int serverVersion) async {
-    await updateSyncState(id, SyncState.synced,
-        cloudId: cloudId, serverVersion: serverVersion);
+  Future<void> delete(String id) async {
+    await (_db.delete(_db.scores)..where((s) => s.id.equals(id))).go();
   }
 
   // ─── Tag management ───────────────────────────────────────────────────────
 
   Future<void> setTags(String scoreId, List<String> tags) async {
     await _db.transaction(() async {
-      // Remove existing tags
       await (_db.delete(_db.scoreTags)..where((t) => t.scoreId.equals(scoreId)))
           .go();
 
-      // Insert normalised tags
       final normalised = tags.map((t) => t.trim().toLowerCase()).toSet();
       for (final tag in normalised) {
         await _db.into(_db.scoreTags).insert(
@@ -119,7 +79,6 @@ class ScoreRepository {
             );
       }
 
-      // Update FTS5 index
       final score = await getById(scoreId);
       if (score != null) {
         await _db.rebuildScoreSearch(
@@ -129,12 +88,8 @@ class ScoreRepository {
         );
       }
 
-      // Mark pending update
       await (_db.update(_db.scores)..where((s) => s.id.equals(scoreId)))
-          .write(ScoresCompanion(
-        syncState: const Value(SyncState.pendingUpdate),
-        updatedAt: Value(DateTime.now()),
-      ));
+          .write(ScoresCompanion(updatedAt: Value(DateTime.now())));
     });
   }
 
@@ -157,10 +112,6 @@ class ScoreRepository {
         folderId: row.folderId,
         importedAt: row.importedAt,
         updatedAt: row.updatedAt,
-        syncState: row.syncState,
-        cloudId: row.cloudId,
-        serverVersion: row.serverVersion,
-        isDeleted: row.isDeleted,
       );
 }
 

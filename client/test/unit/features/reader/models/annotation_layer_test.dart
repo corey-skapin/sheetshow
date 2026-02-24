@@ -22,8 +22,6 @@ void main() {
     String scoreId = 'score-1',
     int pageNumber = 1,
     List<InkStroke>? strokes,
-    SyncState syncState = SyncState.synced,
-    int serverVersion = 0,
   }) =>
       AnnotationLayer(
         id: id,
@@ -31,8 +29,6 @@ void main() {
         pageNumber: pageNumber,
         strokes: strokes ?? [],
         updatedAt: now,
-        syncState: syncState,
-        serverVersion: serverVersion,
       );
 
   group('AnnotationLayer', () {
@@ -42,8 +38,6 @@ void main() {
       expect(layer.scoreId, 'score-1');
       expect(layer.pageNumber, 1);
       expect(layer.strokes, isEmpty);
-      expect(layer.syncState, SyncState.synced);
-      expect(layer.serverVersion, 0);
     });
 
     group('strokesJson', () {
@@ -69,15 +63,11 @@ void main() {
           pageNumber: 3,
           strokesJson: '[]',
           updatedAt: now,
-          syncState: SyncState.pendingUpdate,
-          serverVersion: 2,
         );
         expect(layer.id, 'layer-2');
         expect(layer.scoreId, 'score-2');
         expect(layer.pageNumber, 3);
         expect(layer.strokes, isEmpty);
-        expect(layer.syncState, SyncState.pendingUpdate);
-        expect(layer.serverVersion, 2);
       });
 
       test('deserializes strokes from JSON string', () {
@@ -91,8 +81,6 @@ void main() {
           pageNumber: 1,
           strokesJson: serialized,
           updatedAt: now,
-          syncState: SyncState.synced,
-          serverVersion: 0,
         );
         expect(deserialized.strokes, hasLength(1));
         expect(deserialized.strokes.first.id, 's1');
@@ -105,8 +93,6 @@ void main() {
           pageNumber: 1,
           strokesJson: 'null',
           updatedAt: now,
-          syncState: SyncState.synced,
-          serverVersion: 0,
         );
         expect(layer.strokes, isEmpty);
       });
@@ -119,7 +105,6 @@ void main() {
         expect(copy.id, layer.id);
         expect(copy.scoreId, layer.scoreId);
         expect(copy.pageNumber, layer.pageNumber);
-        expect(copy.syncState, layer.syncState);
         expect(copy.strokes, hasLength(1));
       });
 
@@ -132,35 +117,11 @@ void main() {
         expect(layer.strokes, isEmpty);
       });
 
-      test('copies with new syncState', () {
-        final layer = makeLayer();
-        final copy = layer.copyWith(syncState: SyncState.pendingUpload);
-        expect(copy.syncState, SyncState.pendingUpload);
-      });
-
       test('copies with new updatedAt', () {
         final layer = makeLayer();
         final newTime = DateTime(2025, 1, 1);
         final copy = layer.copyWith(updatedAt: newTime);
         expect(copy.updatedAt, newTime);
-      });
-    });
-
-    group('toJson', () {
-      test('serializes all fields', () {
-        final layer = makeLayer(
-          id: 'layer-5',
-          scoreId: 'score-5',
-          pageNumber: 7,
-          serverVersion: 3,
-        );
-        final json = layer.toJson();
-        expect(json['id'], 'layer-5');
-        expect(json['scoreId'], 'score-5');
-        expect(json['pageNumber'], 7);
-        expect(json['serverVersion'], 3);
-        expect(json['strokes'], isA<List>());
-        expect(json['updatedAt'], now.toIso8601String());
       });
     });
   });
