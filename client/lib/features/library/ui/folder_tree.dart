@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetshow/core/models/enums.dart';
-import 'package:sheetshow/core/theme/app_colors.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/core/theme/app_typography.dart';
 import 'package:sheetshow/features/library/models/folder_model.dart';
@@ -217,6 +216,7 @@ class _FolderNode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return DragTarget<ScoreModel>(
       onAcceptWithDetails: (details) => onAcceptDrop(details.data),
       builder: (context, candidateData, rejectedData) {
@@ -233,20 +233,21 @@ class _FolderNode extends StatelessWidget {
             leading: Icon(
               icon,
               size: 20,
-              color:
-                  isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
             ),
             title: Text(
               label,
               style: AppTypography.bodySmall.copyWith(
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? AppColors.primary : AppColors.onSurface,
+                color: isSelected ? colorScheme.primary : colorScheme.onSurface,
               ),
             ),
             tileColor: isHovered
-                ? AppColors.primaryVariant.withOpacity(0.1)
+                ? colorScheme.primary.withOpacity(0.1)
                 : isSelected
-                    ? AppColors.surfaceVariant
+                    ? colorScheme.surfaceContainerHighest
                     : null,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,

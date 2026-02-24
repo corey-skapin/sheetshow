@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:sheetshow/core/theme/app_colors.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
@@ -201,7 +200,11 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.library_music, size: 80, color: AppColors.border),
+          Icon(
+            Icons.library_music,
+            size: 80,
+            color: Theme.of(context).colorScheme.outline,
+          ),
           const SizedBox(height: AppSpacing.md),
           Text(
             'Your library is empty',

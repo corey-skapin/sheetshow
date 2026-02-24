@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
 
 // T069: ToolSettings — immutable annotation tool configuration.
 
@@ -20,14 +21,14 @@ class ToolSettings {
   /// Default settings for each tool.
   static const ToolSettings pen = ToolSettings(
     activeTool: AnnotationTool.pen,
-    color: Color(0xFF1A1A2E),
+    color: AppColors.inkPen,
     strokeWidth: 2.5,
     opacity: 1.0,
   );
 
   static const ToolSettings highlighter = ToolSettings(
     activeTool: AnnotationTool.highlighter,
-    color: Color(0xFFFFEB3B),
+    color: AppColors.inkHighlighter,
     strokeWidth: 12.0,
     opacity: 0.4,
   );
