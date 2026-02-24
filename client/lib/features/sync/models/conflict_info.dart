@@ -1,4 +1,4 @@
-import '../../../core/models/enums.dart';
+import 'package:sheetshow/core/models/enums.dart';
 
 // T077: ConflictInfo — describes a sync conflict for the merge editor.
 

@@ -1,8 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../models/score_model.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
 
 // T035: ScoreRepository (client) — Drift DAO for score CRUD and sync state management.
 
@@ -30,8 +30,7 @@ class ScoreRepository {
   // ─── Read ─────────────────────────────────────────────────────────────────
 
   Future<ScoreModel?> getById(String id) async {
-    final row = await (_db.select(_db.scores)
-          ..where((s) => s.id.equals(id)))
+    final row = await (_db.select(_db.scores)..where((s) => s.id.equals(id)))
         .getSingleOrNull();
     return row == null ? null : _mapRow(row);
   }
@@ -78,7 +77,7 @@ class ScoreRepository {
         .write(ScoresCompanion(
       isDeleted: const Value(true),
       updatedAt: Value(DateTime.now()),
-      syncState: Value(SyncState.pendingDelete),
+      syncState: const Value(SyncState.pendingDelete),
     ));
   }
 
@@ -109,8 +108,7 @@ class ScoreRepository {
   Future<void> setTags(String scoreId, List<String> tags) async {
     await _db.transaction(() async {
       // Remove existing tags
-      await (_db.delete(_db.scoreTags)
-            ..where((t) => t.scoreId.equals(scoreId)))
+      await (_db.delete(_db.scoreTags)..where((t) => t.scoreId.equals(scoreId)))
           .go();
 
       // Insert normalised tags
@@ -134,7 +132,7 @@ class ScoreRepository {
       // Mark pending update
       await (_db.update(_db.scores)..where((s) => s.id.equals(scoreId)))
           .write(ScoresCompanion(
-        syncState: Value(SyncState.pendingUpdate),
+        syncState: const Value(SyncState.pendingUpdate),
         updatedAt: Value(DateTime.now()),
       ));
     });

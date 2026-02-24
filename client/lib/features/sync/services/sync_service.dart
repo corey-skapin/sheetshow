@@ -1,14 +1,14 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/services/api_client.dart';
-import '../models/sync_status.dart' as status_model;
-import 'conflict_detector.dart';
-import 'sync_queue_processor.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/api_client.dart';
+import 'package:sheetshow/features/sync/models/sync_status.dart'
+    as status_model;
+import 'package:sheetshow/features/sync/services/conflict_detector.dart';
+import 'package:sheetshow/features/sync/services/sync_queue_processor.dart';
 
 // T081-T084: SyncService — full offline-first sync engine.
 
@@ -43,8 +43,7 @@ class SyncService {
     // Listen for connectivity changes
     _connectivitySub = Connectivity().onConnectivityChanged.listen(
       (results) async {
-        final isOnline =
-            !results.contains(ConnectivityResult.none);
+        final isOnline = !results.contains(ConnectivityResult.none);
         if (isOnline) {
           await Future<void>.delayed(const Duration(seconds: 2));
           await _syncNow();
@@ -56,7 +55,7 @@ class SyncService {
 
     // Periodic sync every 30 seconds
     _pollTimer = Timer.periodic(
-      Duration(seconds: kSyncPollIntervalSec),
+      const Duration(seconds: kSyncPollIntervalSec),
       (_) => _syncNow(),
     );
 
@@ -79,8 +78,7 @@ class SyncService {
 
   /// T109: Reset any entries that were left as in_flight from a previous crash.
   Future<void> _recoverInFlightEntries() async {
-    await (db.update(db.syncQueue)
-          ..where((q) => q.status.equals('in_flight')))
+    await (db.update(db.syncQueue)..where((q) => q.status.equals('in_flight')))
         .write(const SyncQueueCompanion(
       status: Value('pending'),
     ));
@@ -155,8 +153,7 @@ class SyncService {
           (response['results'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
       // Check for quota exceeded
-      final hasQuotaError = results.any(
-          (r) => r['status'] == 'quota_exceeded');
+      final hasQuotaError = results.any((r) => r['status'] == 'quota_exceeded');
       if (hasQuotaError) {
         statusNotifier.setQuotaExceeded();
       }
@@ -164,8 +161,7 @@ class SyncService {
       // Check for max-retry exhausted entries
       // (handled by markFailed which transitions to 'failed' at kSyncMaxRetries)
 
-      final conflicts =
-          conflictDetector.processResults(batch, results);
+      final conflicts = conflictDetector.processResults(batch, results);
 
       if (conflicts.isNotEmpty) {
         statusNotifier.setConflict(conflicts.length);

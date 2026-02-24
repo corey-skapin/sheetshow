@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
-import 'app_spacing.dart';
-import 'app_typography.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/core/theme/app_typography.dart';
 
 // T012: Composed ThemeData from design tokens.
 // No inline style values are permitted outside of core/theme/.

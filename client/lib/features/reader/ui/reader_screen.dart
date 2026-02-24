@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../library/models/score_model.dart';
-import '../../library/repositories/score_repository.dart';
-import '../services/annotation_service.dart';
-import 'annotation_overlay.dart';
-import 'annotation_toolbar.dart';
-import 'pdf_page_view.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
+import 'package:sheetshow/features/reader/ui/annotation_overlay.dart';
+import 'package:sheetshow/features/reader/ui/annotation_toolbar.dart';
+import 'package:sheetshow/features/reader/ui/pdf_page_view.dart';
 
 // T041: ReaderScreen — full-screen PDF viewer with annotation toggle.
 
@@ -29,7 +28,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   ScoreModel? _score;
   bool _annotationMode = false;
   int _currentPage = 1;
-  int _totalPages = 0;
 
   @override
   void initState() {
@@ -66,8 +64,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               color: _annotationMode ? AppColors.primary : Colors.white,
             ),
             tooltip: _annotationMode ? 'Exit Annotation' : 'Annotate',
-            onPressed: () =>
-                setState(() => _annotationMode = !_annotationMode),
+            onPressed: () => setState(() => _annotationMode = !_annotationMode),
           ),
         ],
       ),
@@ -80,7 +77,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               if (mounted) {
                 setState(() {
                   _currentPage = page;
-                  _totalPages = total;
                 });
               }
             },

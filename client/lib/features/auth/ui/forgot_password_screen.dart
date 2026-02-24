@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../services/auth_service.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/auth/services/auth_service.dart';
 
 // T102: ForgotPasswordScreen
 

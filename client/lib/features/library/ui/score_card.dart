@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/models/enums.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
-import '../models/score_model.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/core/theme/app_typography.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
 
 // T038: ScoreCard widget — shows thumbnail, title, sync badge, and tags.
 
@@ -26,7 +25,8 @@ class ScoreCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Score: ${score.title}. ${tags.isEmpty ? '' : 'Tags: ${tags.join(', ')}'}',
+      label:
+          'Score: ${score.title}. ${tags.isEmpty ? '' : 'Tags: ${tags.join(', ')}'}',
       button: true,
       child: Card(
         clipBehavior: Clip.antiAlias,
@@ -127,13 +127,20 @@ class _SyncBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color, label) = switch (state) {
-      SyncState.synced => (Icons.cloud_done_outlined, AppColors.syncSynced, 'Synced'),
+      SyncState.synced => (
+          Icons.cloud_done_outlined,
+          AppColors.syncSynced,
+          'Synced'
+        ),
       SyncState.pendingUpload ||
       SyncState.pendingUpdate ||
       SyncState.pendingDelete =>
         (Icons.cloud_upload_outlined, AppColors.syncPending, 'Pending sync'),
-      SyncState.conflict =>
-        (Icons.warning_amber_outlined, AppColors.syncConflict, 'Conflict'),
+      SyncState.conflict => (
+          Icons.warning_amber_outlined,
+          AppColors.syncConflict,
+          'Conflict'
+        ),
     };
 
     return Semantics(

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/models/enums.dart';
-import '../models/conflict_info.dart';
-import '../models/sync_queue_entry.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/sync/models/conflict_info.dart';
+import 'package:sheetshow/features/sync/models/sync_queue_entry.dart';
 
 // T080: ConflictDetector — processes push response and creates ConflictInfo objects.
 
@@ -43,7 +43,8 @@ class ConflictDetector {
     }
     return switch (entityType) {
       SyncEntityType.annotationLayer => ConflictType.annotationModified,
-      SyncEntityType.setList || SyncEntityType.setListEntry =>
+      SyncEntityType.setList ||
+      SyncEntityType.setListEntry =>
         ConflictType.setListModified,
       _ => ConflictType.metadataModified,
     };

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../library/models/score_model.dart';
-import '../../library/repositories/score_repository.dart';
-import '../../library/services/search_service.dart';
-import '../models/set_list_model.dart';
-import '../repositories/set_list_repository.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
+import 'package:sheetshow/features/library/services/search_service.dart';
+import 'package:sheetshow/features/setlists/models/set_list_model.dart';
+import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
 
 // T061: SetListBuilderScreen — reorderable set list with inline search.
 
@@ -20,10 +20,8 @@ class SetListBuilderScreen extends ConsumerStatefulWidget {
       _SetListBuilderScreenState();
 }
 
-class _SetListBuilderScreenState
-    extends ConsumerState<SetListBuilderScreen> {
+class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
   SetListModel? _setList;
-  String _searchQuery = '';
   List<ScoreModel> _searchResults = [];
 
   @override
@@ -166,14 +164,11 @@ class _SetListBuilderScreenState
               isDense: true,
             ),
             onChanged: (q) async {
-              setState(() => _searchQuery = q);
               if (q.isEmpty) {
                 setState(() => _searchResults = []);
               } else {
-                final results = await ref
-                    .read(searchServiceProvider)
-                    .searchStream(q)
-                    .first;
+                final results =
+                    await ref.read(searchServiceProvider).searchStream(q).first;
                 if (mounted) setState(() => _searchResults = results);
               }
             },

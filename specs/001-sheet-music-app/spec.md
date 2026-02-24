@@ -1,4 +1,4 @@
-﻿# Feature Specification: SheetShow — Windows Sheet Music Manager
+# Feature Specification: SheetShow — Windows Sheet Music Manager
 
 **Feature Branch**: `001-sheet-music-app`  
 **Created**: 2025-07-24  

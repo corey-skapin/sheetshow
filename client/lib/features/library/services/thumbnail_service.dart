@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
-import '../repositories/score_repository.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 // T037: ThumbnailService — renders page 1 of a PDF at 200x280 px, saves as PNG.
 
@@ -29,7 +29,8 @@ class ThumbnailService {
       final thumbPath = path.join(thumbDir.path, '$scoreId.png');
 
       // Render in an isolate to avoid blocking UI
-      await compute(_renderThumbnail, _ThumbnailParams(localFilePath, thumbPath));
+      await compute(
+          _renderThumbnail, _ThumbnailParams(localFilePath, thumbPath));
 
       // Update the score record with the thumbnail path
       final score = await _scoreRepository.getById(scoreId);
@@ -61,7 +62,6 @@ Future<void> _renderThumbnail(_ThumbnailParams params) async {
 
   final page = doc.pages.first;
   const thumbWidth = 200.0;
-  const thumbHeight = 280.0;
   final scale = (thumbWidth / page.width).clamp(0.1, 4.0);
 
   final image = await page.render(
@@ -78,8 +78,7 @@ Future<void> _renderThumbnail(_ThumbnailParams params) async {
   final bytes = await uiImage.toByteData(format: ImageByteFormat.png);
 
   if (bytes != null) {
-    await File(params.destPath)
-        .writeAsBytes(bytes.buffer.asUint8List());
+    await File(params.destPath).writeAsBytes(bytes.buffer.asUint8List());
   }
 
   await doc.dispose();

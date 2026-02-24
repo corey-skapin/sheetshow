@@ -1,5 +1,5 @@
-import '../../../core/models/enums.dart';
-import 'set_list_entry_model.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/setlists/models/set_list_entry_model.dart';
 
 // T057: SetListModel — ordered set list of scores.
 
@@ -65,12 +65,10 @@ class SetListModel {
         entries: (json['entries'] as List? ?? [])
             .map((e) => SetListEntryModel.fromJson(e as Map<String, dynamic>))
             .toList(),
-        createdAt:
-            DateTime.tryParse(json['createdAt'] as String? ?? '') ??
-                DateTime.now(),
-        updatedAt:
-            DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
-                DateTime.now(),
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+            DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+            DateTime.now(),
         syncState: SyncState.synced,
         cloudId: json['id'] as String?,
         serverVersion: json['version'] as int? ?? 0,

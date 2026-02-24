@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../models/auth_token.dart';
+import 'package:sheetshow/features/auth/models/auth_token.dart';
 
 // T097: TokenStorageService — uses flutter_secure_storage (Windows Credential Manager).
 
@@ -21,8 +21,7 @@ class TokenStorageService {
       _storage.write(key: _kAccessTokenKey, value: token.accessToken),
       _storage.write(key: _kRefreshTokenKey, value: token.refreshToken),
       _storage.write(
-          key: _kTokenExpiryKey,
-          value: token.expiresAt.toIso8601String()),
+          key: _kTokenExpiryKey, value: token.expiresAt.toIso8601String()),
       _storage.write(key: _kUserIdKey, value: token.userId),
     ]);
   }

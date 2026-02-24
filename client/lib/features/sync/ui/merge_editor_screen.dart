@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../models/conflict_info.dart';
-import '../models/sync_status.dart';
-import '../services/sync_service.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/sync/models/conflict_info.dart';
+import 'package:sheetshow/features/sync/models/sync_status.dart';
 
 // T090: MergeEditorScreen — side-by-side conflict resolution UI.
 
@@ -17,8 +16,7 @@ class MergeEditorScreen extends ConsumerStatefulWidget {
   final List<ConflictInfo> conflicts;
 
   @override
-  ConsumerState<MergeEditorScreen> createState() =>
-      _MergeEditorScreenState();
+  ConsumerState<MergeEditorScreen> createState() => _MergeEditorScreenState();
 }
 
 class _MergeEditorScreenState extends ConsumerState<MergeEditorScreen> {
@@ -37,8 +35,8 @@ class _MergeEditorScreenState extends ConsumerState<MergeEditorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            'Conflict ${_currentIndex + 1} of ${widget.conflicts.length}'),
+        title:
+            Text('Conflict ${_currentIndex + 1} of ${widget.conflicts.length}'),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -118,13 +116,13 @@ class _MergeEditorScreenState extends ConsumerState<MergeEditorScreen> {
   }
 
   String _conflictTypeLabel(ConflictType type) => switch (type) {
-        ConflictType.metadataModified => 'Score metadata was changed on both devices',
+        ConflictType.metadataModified =>
+          'Score metadata was changed on both devices',
         ConflictType.annotationModified =>
           'Annotations were changed on both devices',
         ConflictType.deleteVsUpdate =>
           'Score was deleted on one device and modified on another',
-        ConflictType.setListModified =>
-          'Set list was changed on both devices',
+        ConflictType.setListModified => 'Set list was changed on both devices',
       };
 
   Future<void> _resolve(String resolution) async {
@@ -154,8 +152,7 @@ class _ConflictSide extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
-          child: Text(label,
-              style: Theme.of(context).textTheme.titleSmall),
+          child: Text(label, style: Theme.of(context).textTheme.titleSmall),
         ),
         const Divider(height: 1),
         Expanded(

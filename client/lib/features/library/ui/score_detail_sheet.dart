@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../models/score_model.dart';
-import '../repositories/score_repository.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 // T053: ScoreDetailSheet — bottom sheet with tag management and score actions.
 
@@ -20,7 +20,6 @@ class ScoreDetailSheet extends ConsumerStatefulWidget {
 class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
   late List<String> _tags;
   final _tagController = TextEditingController();
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -138,14 +137,11 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
   }
 
   Future<void> _saveTags() async {
-    await ref
-        .read(scoreRepositoryProvider)
-        .setTags(widget.score.id, _tags);
+    await ref.read(scoreRepositoryProvider).setTags(widget.score.id, _tags);
   }
 
   Future<void> _renameScore() async {
-    final controller =
-        TextEditingController(text: widget.score.title);
+    final controller = TextEditingController(text: widget.score.title);
     final newTitle = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
@@ -180,8 +176,7 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete Score'),
-        content: Text(
-            'Delete "${widget.score.title}"? This cannot be undone.'),
+        content: Text('Delete "${widget.score.title}"? This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -195,9 +190,7 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
       ),
     );
     if (confirmed == true) {
-      await ref
-          .read(scoreRepositoryProvider)
-          .softDelete(widget.score.id);
+      await ref.read(scoreRepositoryProvider).softDelete(widget.score.id);
       if (mounted) Navigator.of(context).pop();
     }
   }

@@ -34,8 +34,7 @@ class SyncStatus {
       SyncStatus(
         state: state ?? this.state,
         lastSyncAt: lastSyncAt ?? this.lastSyncAt,
-        pendingConflictCount:
-            pendingConflictCount ?? this.pendingConflictCount,
+        pendingConflictCount: pendingConflictCount ?? this.pendingConflictCount,
         errorMessage: errorMessage,
       );
 }

@@ -1,5 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/models/enums.dart';
+import 'package:sheetshow/core/models/enums.dart';
 
 // T034: ScoreModel — immutable Dart class mapping to the scores Drift table.
 

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/models/enums.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../models/tool_settings.dart';
-import '../services/annotation_service.dart';
-import 'annotation_overlay.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/reader/models/tool_settings.dart';
+import 'package:sheetshow/features/reader/services/annotation_service.dart';
+import 'package:sheetshow/features/reader/ui/annotation_overlay.dart';
 
 // T074: AnnotationToolbar — tool toggle buttons, colour picker, stroke width slider, undo, clear.
 
@@ -93,9 +93,8 @@ class AnnotationToolbar extends ConsumerWidget {
             label: 'Undo last stroke',
             child: IconButton(
               icon: const Icon(Icons.undo, color: Colors.white),
-              onPressed: () => ref
-                  .read(annotationServiceProvider.notifier)
-                  .undoLastStroke(),
+              onPressed: () =>
+                  ref.read(annotationServiceProvider.notifier).undoLastStroke(),
             ),
           ),
           // Clear all

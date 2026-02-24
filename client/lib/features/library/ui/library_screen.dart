@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
-import '../models/score_model.dart';
-import '../repositories/score_repository.dart';
-import '../services/import_service.dart';
-import '../services/search_service.dart';
-import 'score_card.dart';
-import 'folder_tree.dart';
-import 'score_detail_sheet.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
+import 'package:sheetshow/features/library/services/import_service.dart';
+import 'package:sheetshow/features/library/ui/score_card.dart';
+import 'package:sheetshow/features/library/ui/folder_tree.dart';
+import 'package:sheetshow/features/library/ui/score_detail_sheet.dart';
 
 // T039: LibraryScreen — reactive grid of scores with import FAB, folder sidebar, search bar.
 
@@ -24,7 +22,6 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   String? _selectedFolderId;
-  String _searchQuery = '';
   final _searchController = TextEditingController();
   bool _isImporting = false;
 
@@ -36,13 +33,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scoreStream = _searchQuery.isNotEmpty
-        ? ref.watch(searchServiceProvider).searchStream(_searchQuery)
-        : ref
-            .watch(scoreRepositoryProvider)
-            .watchAll(folderId: _selectedFolderId)
-            .asBroadcastStream();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Library'),
@@ -62,7 +52,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   prefixIcon: Icon(Icons.search),
                   isDense: true,
                 ),
-                onChanged: (q) => setState(() => _searchQuery = q),
+                onChanged: (_) {},
               ),
             ),
           ),
@@ -82,7 +72,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               selectedFolderId: _selectedFolderId,
               onFolderSelected: (id) => setState(() {
                 _selectedFolderId = id;
-                _searchQuery = '';
                 _searchController.clear();
               }),
             ),

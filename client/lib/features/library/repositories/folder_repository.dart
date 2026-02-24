@@ -1,10 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../../../core/services/error_display_service.dart';
-import '../models/folder_model.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/core/services/error_display_service.dart';
+import 'package:sheetshow/features/library/models/folder_model.dart';
 
 // T046: FolderRepository — Drift DAO for folder hierarchy management.
 
@@ -23,8 +23,7 @@ class FolderRepository {
   }
 
   Future<FolderModel?> getById(String id) async {
-    final row = await (_db.select(_db.folders)
-          ..where((f) => f.id.equals(id)))
+    final row = await (_db.select(_db.folders)..where((f) => f.id.equals(id)))
         .getSingleOrNull();
     return row == null ? null : _mapRow(row);
   }
@@ -53,7 +52,7 @@ class FolderRepository {
         .write(FoldersCompanion(
       name: Value(name),
       updatedAt: Value(DateTime.now()),
-      syncState: Value(SyncState.pendingUpdate),
+      syncState: const Value(SyncState.pendingUpdate),
     ));
   }
 
@@ -66,7 +65,7 @@ class FolderRepository {
         .write(FoldersCompanion(
       parentFolderId: Value(parentId),
       updatedAt: Value(DateTime.now()),
-      syncState: Value(SyncState.pendingUpdate),
+      syncState: const Value(SyncState.pendingUpdate),
     ));
   }
 
@@ -75,7 +74,7 @@ class FolderRepository {
         .write(FoldersCompanion(
       isDeleted: const Value(true),
       updatedAt: Value(DateTime.now()),
-      syncState: Value(SyncState.pendingDelete),
+      syncState: const Value(SyncState.pendingDelete),
     ));
   }
 

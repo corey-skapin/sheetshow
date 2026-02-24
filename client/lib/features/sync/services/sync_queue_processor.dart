@@ -1,10 +1,9 @@
-import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../models/sync_queue_entry.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/sync/models/sync_queue_entry.dart';
 
 // T079: SyncQueueProcessor — reads and deduplicates pending sync queue entries.
 
@@ -27,8 +26,7 @@ class SyncQueueProcessor {
 
   /// Mark entries as in-flight.
   Future<void> markInFlight(List<String> ids) async {
-    await (_db.update(_db.syncQueue)
-          ..where((q) => q.id.isIn(ids)))
+    await (_db.update(_db.syncQueue)..where((q) => q.id.isIn(ids)))
         .write(const SyncQueueCompanion(
       status: Value('in_flight'),
     ));
@@ -45,8 +43,7 @@ class SyncQueueProcessor {
     String errorMessage,
     int attemptCount,
   ) async {
-    final status =
-        attemptCount >= kSyncMaxRetries ? 'failed' : 'pending';
+    final status = attemptCount >= kSyncMaxRetries ? 'failed' : 'pending';
     await (_db.update(_db.syncQueue)..where((q) => q.id.equals(id)))
         .write(SyncQueueCompanion(
       status: Value(status),

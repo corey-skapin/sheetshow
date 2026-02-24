@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/services/api_client.dart';
-import '../models/auth_token.dart';
-import '../models/user_profile.dart';
-import 'token_storage_service.dart';
+import 'package:sheetshow/core/services/api_client.dart';
+import 'package:sheetshow/features/auth/models/auth_token.dart';
+import 'package:sheetshow/features/auth/models/user_profile.dart';
+import 'package:sheetshow/features/auth/services/token_storage_service.dart';
 
 // T099: AuthService — register, login, logout, refresh, password flows.
 
@@ -64,8 +64,8 @@ class AuthService extends StateNotifier<AuthState> {
   Future<void> login(String email, String password) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final json =
-          await apiClient.post('/auth/login', {'email': email, 'password': password});
+      final json = await apiClient
+          .post('/auth/login', {'email': email, 'password': password});
       await _handleTokenResponse(json);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -114,9 +114,8 @@ class AuthService extends StateNotifier<AuthState> {
     final token = AuthToken.fromJson({
       'accessToken': json['accessToken'],
       'refreshToken': json['refreshToken'],
-      'expiresAt': DateTime.now()
-          .add(const Duration(minutes: 15))
-          .toIso8601String(),
+      'expiresAt':
+          DateTime.now().add(const Duration(minutes: 15)).toIso8601String(),
       'userId': json['userId'] ?? '',
     });
 

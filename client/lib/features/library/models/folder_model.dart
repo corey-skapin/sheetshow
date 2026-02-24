@@ -1,4 +1,4 @@
-import '../../../core/models/enums.dart';
+import 'package:sheetshow/core/models/enums.dart';
 
 // T045: FolderModel — maps to the folders Drift table.
 
@@ -57,20 +57,17 @@ class FolderModel {
         id: json['id'] as String,
         name: json['name'] as String,
         parentFolderId: json['parentFolderId'] as String?,
-        createdAt:
-            DateTime.tryParse(json['createdAt'] as String? ?? '') ??
-                DateTime.now(),
-        updatedAt:
-            DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
-                DateTime.now(),
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+            DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+            DateTime.now(),
         syncState: SyncState.synced,
         cloudId: json['id'] as String?,
       );
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FolderModel && id == other.id;
+      identical(this, other) || other is FolderModel && id == other.id;
 
   @override
   int get hashCode => id.hashCode;

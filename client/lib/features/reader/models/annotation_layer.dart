@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../../../core/models/enums.dart';
-import 'ink_stroke.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/reader/models/ink_stroke.dart';
 
 // T068: AnnotationLayer — stores all ink strokes for a single page of a score.
 
@@ -25,8 +25,7 @@ class AnnotationLayer {
   final int serverVersion;
 
   /// Serialize strokes to JSON string for Drift storage.
-  String get strokesJson =>
-      jsonEncode(strokes.map((s) => s.toJson()).toList());
+  String get strokesJson => jsonEncode(strokes.map((s) => s.toJson()).toList());
 
   /// Create from Drift row.
   factory AnnotationLayer.fromDb({
@@ -38,8 +37,7 @@ class AnnotationLayer {
     required SyncState syncState,
     required int serverVersion,
   }) {
-    final strokesRaw =
-        jsonDecode(strokesJson) as List? ?? [];
+    final strokesRaw = jsonDecode(strokesJson) as List? ?? [];
     final strokes = strokesRaw
         .map((e) => InkStroke.fromJson(e as Map<String, dynamic>))
         .toList();

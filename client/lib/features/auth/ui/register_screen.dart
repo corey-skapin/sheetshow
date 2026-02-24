@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../services/auth_service.dart';
+import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/auth/services/auth_service.dart';
 
 // T101: RegisterScreen
 
@@ -54,13 +54,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(labelText: 'Email'),
-                    validator: (v) =>
-                        v == null || !v.contains('@') ? 'Enter a valid email' : null,
+                    validator: (v) => v == null || !v.contains('@')
+                        ? 'Enter a valid email'
+                        : null,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   TextFormField(
                     controller: _displayNameController,
-                    decoration: const InputDecoration(labelText: 'Display Name'),
+                    decoration:
+                        const InputDecoration(labelText: 'Display Name'),
                     validator: (v) =>
                         v == null || v.isEmpty ? 'Enter your name' : null,
                   ),
@@ -69,15 +71,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     controller: _passwordController,
                     obscureText: true,
                     decoration: const InputDecoration(labelText: 'Password'),
-                    validator: (v) =>
-                        v == null || v.length < 8 ? 'At least 8 characters required' : null,
+                    validator: (v) => v == null || v.length < 8
+                        ? 'At least 8 characters required'
+                        : null,
                   ),
                   if (authState.error != null) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       authState.error!,
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.error),
+                      style:
+                          TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),

@@ -1,10 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import '../../../core/database/app_database.dart';
-import '../../../core/models/enums.dart';
-import '../models/set_list_entry_model.dart';
-import '../models/set_list_model.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/features/setlists/models/set_list_entry_model.dart';
+import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 
 // T059: SetListRepository — Drift DAO for set list management.
 
@@ -57,7 +57,7 @@ class SetListRepository {
         .write(SetListsCompanion(
       name: Value(name),
       updatedAt: Value(DateTime.now()),
-      syncState: Value(SyncState.pendingUpdate),
+      syncState: const Value(SyncState.pendingUpdate),
     ));
   }
 
@@ -66,7 +66,7 @@ class SetListRepository {
         .write(SetListsCompanion(
       isDeleted: const Value(true),
       updatedAt: Value(DateTime.now()),
-      syncState: Value(SyncState.pendingDelete),
+      syncState: const Value(SyncState.pendingDelete),
     ));
   }
 
@@ -95,8 +95,7 @@ class SetListRepository {
     final entry = await (_db.select(_db.setListEntries)
           ..where((e) => e.id.equals(entryId)))
         .getSingleOrNull();
-    await (_db.delete(_db.setListEntries)
-          ..where((e) => e.id.equals(entryId)))
+    await (_db.delete(_db.setListEntries)..where((e) => e.id.equals(entryId)))
         .go();
     if (entry != null) await _touchSetList(entry.setListId);
   }
@@ -156,7 +155,7 @@ class SetListRepository {
     await (_db.update(_db.setLists)..where((sl) => sl.id.equals(id)))
         .write(SetListsCompanion(
       updatedAt: Value(DateTime.now()),
-      syncState: Value(SyncState.pendingUpdate),
+      syncState: const Value(SyncState.pendingUpdate),
     ));
   }
 }

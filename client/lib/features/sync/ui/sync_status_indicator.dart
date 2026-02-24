@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme/app_colors.dart';
-import '../models/sync_status.dart';
-import '../services/sync_service.dart';
+import 'package:sheetshow/core/theme/app_colors.dart';
+import 'package:sheetshow/features/sync/models/sync_status.dart';
+import 'package:sheetshow/features/sync/services/sync_service.dart';
 
 // T089: SyncStatusIndicator — app bar widget showing current sync state.
 
@@ -63,8 +63,8 @@ class SyncStatusIndicator extends ConsumerWidget {
             const SizedBox(width: 4),
             Text(
               '${status.pendingConflictCount} conflict${status.pendingConflictCount == 1 ? '' : 's'}',
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.syncConflict),
+              style:
+                  const TextStyle(fontSize: 12, color: AppColors.syncConflict),
             ),
           ],
         );

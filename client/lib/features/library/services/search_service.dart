@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/database/app_database.dart';
-import '../models/score_model.dart';
-import '../repositories/score_repository.dart';
+import 'package:sheetshow/core/constants/app_constants.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 // T048: SearchService — debounced FTS5 full-text search over score title and tags.
 
@@ -19,7 +19,7 @@ class SearchService {
   /// Empty query returns all scores.
   Stream<List<ScoreModel>> searchStream(String query) async* {
     await Future<void>.delayed(
-      Duration(milliseconds: kSearchDebounceMs),
+      const Duration(milliseconds: kSearchDebounceMs),
     );
 
     if (query.trim().isEmpty) {

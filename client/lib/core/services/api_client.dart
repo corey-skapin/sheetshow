@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import '../constants/api_config.dart';
-import '../constants/app_constants.dart';
-import 'error_display_service.dart';
+import 'package:sheetshow/core/constants/api_config.dart';
+import 'package:sheetshow/core/services/error_display_service.dart';
 
 // T019: ApiClient — HTTP wrapper with Bearer token injection, 401 auto-refresh, and error mapping.
 
@@ -71,7 +70,8 @@ class ApiClient {
 
     if (streamed.statusCode == 401) {
       // Token refresh is handled by the auth interceptor layer; throw here.
-      throw const AuthException('Your session has expired. Please log in again.');
+      throw const AuthException(
+          'Your session has expired. Please log in again.');
     }
 
     _checkStatus(streamed.statusCode);
@@ -81,11 +81,20 @@ class ApiClient {
   void _checkStatus(int statusCode) {
     if (statusCode >= 200 && statusCode < 300) return;
     if (statusCode == 400) throw const ValidationException('Invalid request.');
-    if (statusCode == 404) throw AppException('Not found.', code: 'not_found');
-    if (statusCode == 409) throw AppException('Conflict.', code: 'conflict');
-    if (statusCode == 429) throw NetworkException('Too many requests. Please wait.');
-    if (statusCode >= 500) throw NetworkException('Server error. Please try again later.');
-    throw AppException('Unexpected error (HTTP $statusCode).', code: 'http_error');
+    if (statusCode == 404) {
+      throw const AppException('Not found.', code: 'not_found');
+    }
+    if (statusCode == 409) {
+      throw const AppException('Conflict.', code: 'conflict');
+    }
+    if (statusCode == 429) {
+      throw const NetworkException('Too many requests. Please wait.');
+    }
+    if (statusCode >= 500) {
+      throw const NetworkException('Server error. Please try again later.');
+    }
+    throw AppException('Unexpected error (HTTP $statusCode).',
+        code: 'http_error');
   }
 
   Future<Map<String, dynamic>> _decode(http.StreamedResponse response) async {
