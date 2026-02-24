@@ -28,6 +28,13 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
   void initState() {
     super.initState();
     _loadSetList();
+    _loadAllScores();
+  }
+
+  Future<void> _loadAllScores() async {
+    final results =
+        await ref.read(searchServiceProvider).searchStream('').first;
+    if (mounted) setState(() => _searchResults = results);
   }
 
   Future<void> _loadSetList() async {
@@ -46,6 +53,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(onPressed: () => context.go('/setlists')),
         title: Text(sl.name),
         actions: [
           ElevatedButton.icon(
@@ -164,13 +172,9 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
               isDense: true,
             ),
             onChanged: (q) async {
-              if (q.isEmpty) {
-                setState(() => _searchResults = []);
-              } else {
-                final results =
-                    await ref.read(searchServiceProvider).searchStream(q).first;
-                if (mounted) setState(() => _searchResults = results);
-              }
+              final results =
+                  await ref.read(searchServiceProvider).searchStream(q).first;
+              if (mounted) setState(() => _searchResults = results);
             },
           ),
         ),
