@@ -36,4 +36,16 @@ abstract final class AppColors {
   // Divider and border
   static const Color divider = Color(0xFFE0E0E0);
   static const Color border = Color(0xFFCCCCDD);
+
+  // Dark mode surface palette
+  static const Color darkBackground = Color(0xFF121218);
+  static const Color darkSurface = Color(0xFF1E1E2E);
+  static const Color darkSurfaceVariant = Color(0xFF2A2A3E);
+  static const Color darkOnBackground = Color(0xFFE8E8F0);
+  static const Color darkOnSurface = Color(0xFFE8E8F0);
+  static const Color darkOnSurfaceVariant = Color(0xFFAAAABC);
+
+  // Dark mode divider and border
+  static const Color darkDivider = Color(0xFF2E2E3E);
+  static const Color darkBorder = Color(0xFF3A3A4A);
 }
