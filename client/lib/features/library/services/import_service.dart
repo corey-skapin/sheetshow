@@ -11,7 +11,7 @@ import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 import 'package:sheetshow/features/library/services/thumbnail_service.dart';
 
-// T036: ImportService — picks a PDF, copies it locally, registers in DB, triggers thumbnail.
+// T036: ImportService — picks PDFs or a folder, copies locally, registers in DB, triggers thumbnail.
 
 /// Handles PDF import from the file system into the SheetShow library.
 class ImportService {
@@ -25,33 +25,89 @@ class ImportService {
   final ThumbnailService thumbnailService;
   final ClockService clockService;
 
-  /// Open the system file picker, validate, copy, and register the selected PDF.
+  /// Open the system file picker (multi-select), validate, copy, and register
+  /// each selected PDF.
   ///
-  /// Pass [folderId] to import directly into a specific folder.
-  /// Throws [LocalStorageFullException] if disk space is insufficient.
-  /// Throws [InvalidPdfException] if the file is corrupt or password-protected.
-  Future<ScoreModel?> importPdf({String? folderId}) async {
-    // Open file picker filtered to PDFs
+  /// [onProgress] is called after each successful import with (done, total).
+  /// Returns the list of successfully imported scores.
+  Future<List<ScoreModel>> importFiles({
+    String? folderId,
+    void Function(int done, int total)? onProgress,
+  }) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
-      allowMultiple: false,
+      allowMultiple: true,
     );
-    if (result == null || result.files.isEmpty) return null;
+    if (result == null || result.files.isEmpty) return [];
 
-    final picked = result.files.first;
-    final sourcePath = picked.path;
-    if (sourcePath == null) throw const InvalidPdfException();
+    final paths = result.files.map((f) => f.path).whereType<String>().toList();
+    return _importPaths(paths, folderId: folderId, onProgress: onProgress);
+  }
 
+  /// Open a directory picker and import all PDF files found within it
+  /// (non-recursive by default, recursive if the folder contains sub-folders).
+  ///
+  /// [onProgress] is called after each successful import with (done, total).
+  /// Returns the list of successfully imported scores.
+  Future<List<ScoreModel>> importFolder({
+    String? folderId,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    final dirPath = await FilePicker.platform.getDirectoryPath();
+    if (dirPath == null) return [];
+
+    final dir = Directory(dirPath);
+    final pdfFiles = dir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.pdf'))
+        .toList();
+
+    if (pdfFiles.isEmpty) return [];
+
+    return _importPaths(
+      pdfFiles.map((f) => f.path).toList(),
+      folderId: folderId,
+      onProgress: onProgress,
+    );
+  }
+
+  // ─── Internal ──────────────────────────────────────────────────────────────
+
+  Future<List<ScoreModel>> _importPaths(
+    List<String> paths, {
+    String? folderId,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    final results = <ScoreModel>[];
+    final total = paths.length;
+    for (final sourcePath in paths) {
+      try {
+        final score = await _importSingleFile(sourcePath, folderId: folderId);
+        if (score != null) {
+          results.add(score);
+          onProgress?.call(results.length, total);
+        }
+      } catch (_) {
+        // Skip invalid/corrupt files; continue with the rest.
+      }
+    }
+    return results;
+  }
+
+  /// Copy and register a single PDF file. Returns null if the file is invalid.
+  Future<ScoreModel?> _importSingleFile(
+    String sourcePath, {
+    String? folderId,
+  }) async {
     final sourceFile = File(sourcePath);
     if (!sourceFile.existsSync() || sourceFile.lengthSync() == 0) {
       throw const InvalidPdfException();
     }
 
-    // Check free disk space
     await _checkFreeDiskSpace(sourceFile);
 
-    // Determine destination directory
     final appDir = await getApplicationDocumentsDirectory();
     final scoreId = const Uuid().v4();
     final destDir = Directory(path.join(appDir.path, 'scores', scoreId));
@@ -60,7 +116,6 @@ class ImportService {
     final destPath = path.join(destDir.path, path.basename(sourcePath));
     await sourceFile.copy(destPath);
 
-    // Extract page count via pdfrx
     int totalPages;
     try {
       final doc = await PdfDocument.openFile(destPath);
@@ -68,7 +123,6 @@ class ImportService {
       await doc.dispose();
       if (totalPages == 0) throw const InvalidPdfException();
     } catch (e) {
-      // Clean up copied file on failure
       await File(destPath).delete();
       throw const InvalidPdfException();
     }
@@ -89,8 +143,6 @@ class ImportService {
     );
 
     await scoreRepository.insert(score);
-
-    // Trigger thumbnail generation asynchronously
     unawaited(thumbnailService.generateThumbnail(destPath, scoreId));
 
     return score;

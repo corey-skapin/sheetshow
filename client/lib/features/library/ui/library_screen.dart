@@ -25,7 +25,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   String? _selectedFolderId;
   String _searchQuery = '';
   final _searchController = TextEditingController();
-  bool _isImporting = false;
+
+  /// null = idle; non-null = (done, total) progress during batch import.
+  (int, int)? _importProgress;
+  bool get _isImporting => _importProgress != null;
 
   @override
   void dispose() {
@@ -94,7 +97,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 }
                 final scores = snapshot.data ?? [];
                 if (scores.isEmpty) {
-                  return _EmptyState(onImport: _importScore);
+                  return _EmptyState(onImport: _importFiles);
                 }
                 return _ScoreGrid(
                   scores: scores,
@@ -116,26 +119,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isImporting ? null : _importScore,
-        icon: _isImporting
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.add),
-        label: const Text('Import PDF'),
+      floatingActionButton: _ImportFab(
+        isImporting: _isImporting,
+        importProgress: _importProgress,
+        onImportFiles: _importFiles,
+        onImportFolder: _importFolder,
       ),
     );
   }
 
-  Future<void> _importScore() async {
-    setState(() => _isImporting = true);
+  Future<void> _importFiles() async {
+    setState(() => _importProgress = (0, 1));
     try {
-      await ref
-          .read(importServiceProvider)
-          .importPdf(folderId: _selectedFolderId);
+      await ref.read(importServiceProvider).importFiles(
+            folderId: _selectedFolderId,
+            onProgress: (done, total) {
+              if (mounted) setState(() => _importProgress = (done, total));
+            },
+          );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -143,7 +144,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isImporting = false);
+      if (mounted) setState(() => _importProgress = null);
+    }
+  }
+
+  Future<void> _importFolder() async {
+    setState(() => _importProgress = (0, 1));
+    try {
+      await ref.read(importServiceProvider).importFolder(
+            folderId: _selectedFolderId,
+            onProgress: (done, total) {
+              if (mounted) setState(() => _importProgress = (done, total));
+            },
+          );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _importProgress = null);
     }
   }
 
@@ -213,15 +234,68 @@ class _EmptyState extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.sm),
-          const Text('Tap "Import PDF" to add sheet music.'),
+          const Text('Tap "Import" to add sheet music.'),
           const SizedBox(height: AppSpacing.lg),
           ElevatedButton.icon(
             onPressed: onImport,
             icon: const Icon(Icons.add),
-            label: const Text('Import PDF'),
+            label: const Text('Import files'),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Import FAB ───────────────────────────────────────────────────────────────
+
+/// A two-button FAB column: "Import folder" (small) above "Import files" (main).
+class _ImportFab extends StatelessWidget {
+  const _ImportFab({
+    required this.isImporting,
+    required this.importProgress,
+    required this.onImportFiles,
+    required this.onImportFolder,
+  });
+
+  final bool isImporting;
+  final (int, int)? importProgress;
+  final VoidCallback onImportFiles;
+  final VoidCallback onImportFolder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isImporting) {
+      final (done, total) = importProgress ?? (0, 1);
+      return FloatingActionButton.extended(
+        onPressed: null,
+        icon: const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        label: Text(total > 1 ? 'Importing $done/$total…' : 'Importing…'),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        FloatingActionButton.small(
+          heroTag: 'import_folder',
+          tooltip: 'Import folder',
+          onPressed: onImportFolder,
+          child: const Icon(Icons.folder_open),
+        ),
+        const SizedBox(height: 12),
+        FloatingActionButton.extended(
+          heroTag: 'import_files',
+          onPressed: onImportFiles,
+          icon: const Icon(Icons.add),
+          label: const Text('Import files'),
+        ),
+      ],
     );
   }
 }
