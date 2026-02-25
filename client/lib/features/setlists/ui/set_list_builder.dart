@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
-import 'package:sheetshow/features/library/repositories/score_repository.dart';
 import 'package:sheetshow/features/library/services/search_service.dart';
 import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
@@ -23,6 +22,7 @@ class SetListBuilderScreen extends ConsumerStatefulWidget {
 class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
   SetListModel? _setList;
   List<ScoreModel> _searchResults = [];
+  Map<String, ScoreModel> _scoreCache = {};
 
   @override
   void initState() {
@@ -34,7 +34,12 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
   Future<void> _loadAllScores() async {
     final results =
         await ref.read(searchServiceProvider).searchStream('').first;
-    if (mounted) setState(() => _searchResults = results);
+    if (mounted) {
+      setState(() {
+        _searchResults = results;
+        _scoreCache = {for (final s in results) s.id: s};
+      });
+    }
   }
 
   Future<void> _loadSetList() async {
@@ -98,6 +103,10 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
         if (newIndex > oldIndex) newIndex--;
         final entry = entries.removeAt(oldIndex);
         entries.insert(newIndex, entry);
+        // Optimistically update local state so there's no flicker.
+        setState(() {
+          _setList = sl.copyWith(entries: entries);
+        });
         await ref.read(setListRepositoryProvider).reorderEntries(
               widget.setListId,
               entries.map((e) => e.id).toList(),
@@ -106,51 +115,47 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
       },
       itemBuilder: (_, i) {
         final entry = sl.entries[i];
-        return ReorderableDelayedDragStartListener(
+        final score = _scoreCache[entry.scoreId];
+
+        // T062: Handle orphaned entry (score not found in cache).
+        if (_scoreCache.isNotEmpty && score == null) {
+          return ReorderableDragStartListener(
+            key: ValueKey(entry.id),
+            index: i,
+            child: ListTile(
+              leading: const Icon(Icons.warning_amber, color: Colors.orange),
+              title: const Text('Score not found — removed from library'),
+              subtitle: const Text('Tap × to remove from set list'),
+              trailing: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () async {
+                  await ref
+                      .read(setListRepositoryProvider)
+                      .removeEntry(entry.id);
+                  await _loadSetList();
+                },
+              ),
+            ),
+          );
+        }
+
+        return ReorderableDragStartListener(
           key: ValueKey(entry.id),
           index: i,
-          child: FutureBuilder<ScoreModel?>(
-            future: ref.read(scoreRepositoryProvider).getById(entry.scoreId),
-            builder: (_, snapshot) {
-              final score = snapshot.data;
-              // T062: Handle orphaned entry (score not found)
-              if (snapshot.connectionState == ConnectionState.done &&
-                  score == null) {
-                return ListTile(
-                  leading:
-                      const Icon(Icons.warning_amber, color: Colors.orange),
-                  title: const Text('Score not found — removed from library'),
-                  subtitle: const Text('Tap × to remove from set list'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () async {
-                      await ref
-                          .read(setListRepositoryProvider)
-                          .removeEntry(entry.id);
-                      await _loadSetList();
-                    },
-                  ),
-                );
-              }
-
-              return ListTile(
-                leading: Text(
-                  '${i + 1}',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                title: Text(score?.title ?? '…'),
-                subtitle: Text('${score?.totalPages ?? 0} pages'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () async {
-                    await ref
-                        .read(setListRepositoryProvider)
-                        .removeEntry(entry.id);
-                    await _loadSetList();
-                  },
-                ),
-              );
-            },
+          child: ListTile(
+            leading: Text(
+              '${i + 1}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            title: Text(score?.title ?? '…'),
+            subtitle: Text('${score?.totalPages ?? 0} pages'),
+            trailing: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () async {
+                await ref.read(setListRepositoryProvider).removeEntry(entry.id);
+                await _loadSetList();
+              },
+            ),
           ),
         );
       },
