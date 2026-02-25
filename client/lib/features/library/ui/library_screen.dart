@@ -133,7 +133,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Future<void> _importScore() async {
     setState(() => _isImporting = true);
     try {
-      await ref.read(importServiceProvider).importPdf();
+      await ref
+          .read(importServiceProvider)
+          .importPdf(folderId: _selectedFolderId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

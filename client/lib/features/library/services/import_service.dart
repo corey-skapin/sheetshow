@@ -27,9 +27,10 @@ class ImportService {
 
   /// Open the system file picker, validate, copy, and register the selected PDF.
   ///
+  /// Pass [folderId] to import directly into a specific folder.
   /// Throws [LocalStorageFullException] if disk space is insufficient.
   /// Throws [InvalidPdfException] if the file is corrupt or password-protected.
-  Future<ScoreModel?> importPdf() async {
+  Future<ScoreModel?> importPdf({String? folderId}) async {
     // Open file picker filtered to PDFs
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -82,6 +83,7 @@ class ImportService {
       filename: filename,
       localFilePath: destPath,
       totalPages: totalPages,
+      folderId: folderId,
       importedAt: now,
       updatedAt: now,
     );
