@@ -61,6 +61,11 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
 
   final ScrollController _scrollController = ScrollController();
 
+  /// Width of the search panel; dragged by the resize handle.
+  double _searchPanelWidth = 320;
+  static const double _searchPanelMinWidth = 180;
+  static const double _searchPanelMaxWidth = 600;
+
   // ─── Init ─────────────────────────────────────────────────────────────────
 
   @override
@@ -331,9 +336,24 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
       ),
       body: Row(
         children: [
-          Expanded(flex: 2, child: _buildEntryList()),
-          const VerticalDivider(width: 1),
-          Expanded(child: _buildSearchPanel()),
+          Expanded(child: _buildEntryList()),
+          MouseRegion(
+            cursor: SystemMouseCursors.resizeColumn,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: (d) => setState(() {
+                _searchPanelWidth = (_searchPanelWidth - d.delta.dx).clamp(
+                  _searchPanelMinWidth,
+                  _searchPanelMaxWidth,
+                );
+              }),
+              child: const SizedBox(
+                width: 6,
+                child: VerticalDivider(width: 6),
+              ),
+            ),
+          ),
+          SizedBox(width: _searchPanelWidth, child: _buildSearchPanel()),
         ],
       ),
     );
