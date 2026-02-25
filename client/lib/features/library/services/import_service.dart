@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -77,14 +78,10 @@ class ImportService {
     final dirPath = await FilePicker.platform.getDirectoryPath();
     if (dirPath == null) return [];
 
-    final dir = Directory(dirPath);
-    final pdfFiles = dir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.toLowerCase().endsWith('.pdf'))
-        .toList();
+    // Scan the directory in a background isolate to avoid blocking the UI thread.
+    final pdfPaths = await compute(_scanForPdfs, dirPath);
 
-    if (pdfFiles.isEmpty) return [];
+    if (pdfPaths.isEmpty) return [];
 
     // Create a new app folder named after the chosen directory.
     final folderName = path.basename(dirPath);
@@ -99,7 +96,7 @@ class ImportService {
     await folderRepository.create(newFolder);
 
     return _importPaths(
-      pdfFiles.map((f) => f.path).toList(),
+      pdfPaths,
       folderId: newFolder.id,
       onProgress: onProgress,
       cancelToken: cancelToken,
@@ -137,7 +134,7 @@ class ImportService {
     String? folderId,
   }) async {
     final sourceFile = File(sourcePath);
-    if (!sourceFile.existsSync() || sourceFile.lengthSync() == 0) {
+    if (!await sourceFile.exists() || await sourceFile.length() == 0) {
       throw const InvalidPdfException();
     }
 
@@ -191,6 +188,17 @@ class ImportService {
       // Skip space check if unable to determine
     }
   }
+}
+
+/// Top-level function for use with [compute] — scans [dirPath] for PDF files
+/// in a background isolate so the UI thread is never blocked.
+List<String> _scanForPdfs(String dirPath) {
+  return Directory(dirPath)
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((f) => f.path.toLowerCase().endsWith('.pdf'))
+      .map((f) => f.path)
+      .toList();
 }
 
 /// Dart helper to fire-and-forget async tasks.
