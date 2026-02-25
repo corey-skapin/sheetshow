@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as path;
 import 'package:sheetshow/core/database/app_database.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 
@@ -86,6 +89,15 @@ class ScoreRepository {
     return row == null ? null : _mapRow(row);
   }
 
+  /// Returns the first score whose [ScoreModel.localFilePath] matches [filePath].
+  Future<ScoreModel?> getByFilePath(String filePath) async {
+    final row = await (_db.select(_db.scores)
+          ..where((s) => s.localFilePath.equals(filePath))
+          ..limit(1))
+        .getSingleOrNull();
+    return row == null ? null : _mapRow(row);
+  }
+
   // ─── Write ────────────────────────────────────────────────────────────────
 
   Future<void> insert(ScoreModel score, {String? folderId}) async {
@@ -144,7 +156,34 @@ class ScoreRepository {
     return {...own, ...folderTags}.toList()..sort();
   }
 
+  /// Updates the score's metadata.
+  ///
+  /// If [ScoreModel.title] has changed and the file at [ScoreModel.localFilePath]
+  /// exists on disk, the file is renamed to match the new title and
+  /// [local_file_path] / [filename] are updated in the database accordingly.
   Future<void> update(ScoreModel score) async {
+    final existing = await getById(score.id);
+
+    if (existing != null && existing.title != score.title) {
+      final oldFile = File(existing.localFilePath);
+      if (await oldFile.exists()) {
+        final dir = path.dirname(existing.localFilePath);
+        final newFilename = '${score.title}.pdf';
+        final newPath = path.join(dir, newFilename);
+        await oldFile.rename(newPath);
+        await (_db.update(_db.scores)..where((s) => s.id.equals(score.id)))
+            .write(ScoresCompanion(
+          title: Value(score.title),
+          filename: Value(newFilename),
+          localFilePath: Value(newPath),
+          thumbnailPath: Value(score.thumbnailPath),
+          updatedAt: Value(DateTime.now()),
+        ));
+        await _db.rebuildScoreSearch(score.id, score.title, '');
+        return;
+      }
+    }
+
     await (_db.update(_db.scores)..where((s) => s.id.equals(score.id)))
         .write(ScoresCompanion(
       title: Value(score.title),
@@ -152,6 +191,19 @@ class ScoreRepository {
       updatedAt: Value(DateTime.now()),
     ));
     await _db.rebuildScoreSearch(score.id, score.title, '');
+  }
+
+  /// Updates [local_file_path] and [filename] in the database.
+  ///
+  /// Called by [FolderWatchService] when a PDF is renamed or moved on disk.
+  Future<void> updateFilePath(
+      String id, String newPath, String newFilename) async {
+    await (_db.update(_db.scores)..where((s) => s.id.equals(id)))
+        .write(ScoresCompanion(
+      localFilePath: Value(newPath),
+      filename: Value(newFilename),
+      updatedAt: Value(DateTime.now()),
+    ));
   }
 
   Future<void> delete(String id) async {
@@ -236,6 +288,6 @@ class ScoreRepository {
 
 /// Riverpod provider for [ScoreRepository].
 final scoreRepositoryProvider = Provider<ScoreRepository>((ref) {
-  final db = ref.watch(databaseProvider);
+  final db = ref.watch(databaseProvider).requireValue;
   return ScoreRepository(db);
 });

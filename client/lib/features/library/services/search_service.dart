@@ -50,7 +50,7 @@ class SearchService {
 /// Riverpod provider for [SearchService].
 final searchServiceProvider = Provider<SearchService>((ref) {
   return SearchService(
-    ref.watch(databaseProvider),
+    ref.watch(databaseProvider).requireValue,
     ref.watch(scoreRepositoryProvider),
   );
 });

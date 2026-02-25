@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sheetshow/core/services/workspace_service.dart';
 
 part 'app_database.g.dart';
 
@@ -25,6 +29,10 @@ class Folders extends Table {
   TextColumn get parentFolderId => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
+
+  /// Absolute path of the corresponding directory on disk.
+  /// Null for folders that have no disk counterpart.
+  TextColumn get folderPath => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -123,10 +131,13 @@ class AnnotationLayers extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// Opens the database at an explicit [dbPath] on disk.
+  AppDatabase.openAt(String dbPath) : super(NativeDatabase(File(dbPath)));
+
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -207,6 +218,10 @@ class AppDatabase extends _$AppDatabase {
             await customStatement('ALTER TABLE scores DROP COLUMN folder_id');
             await customStatement('ALTER TABLE scores DROP COLUMN imported_at');
           }
+          if (from < 5) {
+            await customStatement(
+                'ALTER TABLE folders ADD COLUMN folder_path TEXT');
+          }
         },
         beforeOpen: (details) async {
           // Enable WAL mode for crash safety
@@ -250,8 +265,24 @@ LazyDatabase _openConnection() {
 }
 
 /// Riverpod provider for the [AppDatabase] singleton.
-final databaseProvider = Provider<AppDatabase>((ref) {
-  final db = AppDatabase();
+///
+/// Opens the database at the workspace path configured via [WorkspaceService].
+/// Throws [WorkspaceNotConfiguredException] when no workspace has been set yet.
+final databaseProvider = FutureProvider<AppDatabase>((ref) async {
+  final workspaceService = ref.watch(workspaceServiceProvider);
+  final workspacePath = await workspaceService.getWorkspacePath();
+  if (workspacePath == null) throw const WorkspaceNotConfiguredException();
+  await workspaceService.ensureSheetshowDir(workspacePath);
+  final dbPath = workspaceService.getDatabasePath(workspacePath);
+  final db = AppDatabase.openAt(dbPath);
   ref.onDispose(db.close);
   return db;
 });
+
+/// Thrown when the app attempts to open the database before a workspace is set.
+class WorkspaceNotConfiguredException implements Exception {
+  const WorkspaceNotConfiguredException();
+
+  @override
+  String toString() => 'WorkspaceNotConfiguredException';
+}
