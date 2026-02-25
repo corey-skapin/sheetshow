@@ -195,6 +195,8 @@ class ImportService {
   }
 
   /// Copy and register a single PDF file. Returns null if the file is invalid.
+  /// If a score with the same filename already exists, adds a folder membership
+  /// to the existing score instead of creating a duplicate.
   Future<ScoreModel?> _importSingleFile(
     String sourcePath, {
     String? folderId,
@@ -204,6 +206,18 @@ class ImportService {
       throw const InvalidPdfException();
     }
 
+    final filename = path.basename(sourcePath);
+
+    // Deduplicate: if this filename was already imported, reuse the existing
+    // score (same annotations, tags, etc.) and just add a folder membership.
+    final existing = await scoreRepository.getByFilename(filename);
+    if (existing != null) {
+      if (folderId != null) {
+        await scoreRepository.addToFolder(existing.id, folderId);
+      }
+      return existing;
+    }
+
     await _checkFreeDiskSpace(sourceFile);
 
     final appDir = await getApplicationDocumentsDirectory();
@@ -211,7 +225,7 @@ class ImportService {
     final destDir = Directory(path.join(appDir.path, 'scores', scoreId));
     await destDir.create(recursive: true);
 
-    final destPath = path.join(destDir.path, path.basename(sourcePath));
+    final destPath = path.join(destDir.path, filename);
     await sourceFile.copy(destPath);
 
     int totalPages;
@@ -226,7 +240,6 @@ class ImportService {
     }
 
     final now = clockService.now();
-    final filename = path.basename(sourcePath);
     final title = path.basenameWithoutExtension(sourcePath);
 
     final score = ScoreModel(

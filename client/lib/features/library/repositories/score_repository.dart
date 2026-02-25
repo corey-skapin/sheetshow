@@ -77,6 +77,15 @@ class ScoreRepository {
     return row == null ? null : _mapRow(row);
   }
 
+  /// Returns the first score whose stored filename matches [filename], or null.
+  Future<ScoreModel?> getByFilename(String filename) async {
+    final row = await (_db.select(_db.scores)
+          ..where((s) => s.filename.equals(filename))
+          ..limit(1))
+        .getSingleOrNull();
+    return row == null ? null : _mapRow(row);
+  }
+
   // ─── Write ────────────────────────────────────────────────────────────────
 
   Future<void> insert(ScoreModel score, {String? folderId}) async {
