@@ -58,12 +58,21 @@ class AuthException extends AppException {
   const AuthException(super.message) : super(code: 'auth_error');
 }
 
-/// Folder nesting depth exceeded.
+/// Folder depth limit exceeded.
 class FolderDepthException extends AppException {
   const FolderDepthException()
       : super(
           'Folders cannot be nested more than 10 levels deep.',
           code: 'folder_depth_exceeded',
+        );
+}
+
+/// A root-level folder with that name already exists.
+class DuplicateFolderNameException extends AppException {
+  DuplicateFolderNameException(String name)
+      : super(
+          'A root folder named "$name" already exists.',
+          code: 'duplicate_folder_name',
         );
 }
 

@@ -34,6 +34,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   // ─── Multi-select ──────────────────────────────────────────────────────────
   final Set<String> _selectedIds = {};
+  final Set<String> _filterTags = {};
 
   void _toggleSelect(ScoreModel score) {
     setState(() {
@@ -99,6 +100,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 _searchQuery = '';
                 _searchController.clear();
                 _selectedIds.clear();
+                _filterTags.clear();
               }),
             ),
           ),
@@ -123,29 +125,60 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
-                      final scores = snapshot.data ?? [];
-                      if (scores.isEmpty && _selectedIds.isEmpty) {
+                      final allScores = snapshot.data ?? [];
+                      final allTags = {
+                        for (final s in allScores) ...s.effectiveTags,
+                      }.toList()
+                        ..sort();
+                      final scores = _filterTags.isEmpty
+                          ? allScores
+                          : allScores
+                              .where((s) => _filterTags
+                                  .every((t) => s.effectiveTags.contains(t)))
+                              .toList();
+                      if (allScores.isEmpty && _selectedIds.isEmpty) {
                         return _EmptyState(onImport: _importFiles);
                       }
-                      return _ScoreGrid(
-                        scores: scores,
-                        selectedIds: _selectedIds,
-                        onTap: (score) {
-                          final index = scores.indexOf(score);
-                          context.push(
-                            '/reader/${score.id}',
-                            extra: ReaderArgs(
-                              score: score,
-                              scores: scores,
-                              currentIndex: index,
+                      return Column(
+                        children: [
+                          if (allTags.isNotEmpty)
+                            _TagFilterBar(
+                              tags: allTags,
+                              selectedTags: _filterTags,
+                              onToggle: (tag) => setState(() {
+                                if (_filterTags.contains(tag)) {
+                                  _filterTags.remove(tag);
+                                } else {
+                                  _filterTags.add(tag);
+                                }
+                              }),
                             ),
-                          );
-                        },
-                        onToggleSelect: _toggleSelect,
-                        onContextMenu: (score) => _showContextMenu(
-                          score,
-                          folderId: _selectedFolderId,
-                        ),
+                          Expanded(
+                            child: scores.isEmpty
+                                ? const Center(
+                                    child: Text('No scores match the filter.'))
+                                : _ScoreGrid(
+                                    scores: scores,
+                                    selectedIds: _selectedIds,
+                                    onTap: (score) {
+                                      final index = scores.indexOf(score);
+                                      context.push(
+                                        '/reader/${score.id}',
+                                        extra: ReaderArgs(
+                                          score: score,
+                                          scores: scores,
+                                          currentIndex: index,
+                                        ),
+                                      );
+                                    },
+                                    onToggleSelect: _toggleSelect,
+                                    onContextMenu: (score) => _showContextMenu(
+                                      score,
+                                      folderId: _selectedFolderId,
+                                    ),
+                                  ),
+                          ),
+                        ],
                       );
                     },
                   ),
@@ -316,6 +349,46 @@ class _ScoreGrid extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// ─── Tag filter bar ───────────────────────────────────────────────────────────
+
+class _TagFilterBar extends StatelessWidget {
+  const _TagFilterBar({
+    required this.tags,
+    required this.selectedTags,
+    required this.onToggle,
+  });
+
+  final List<String> tags;
+  final Set<String> selectedTags;
+  final void Function(String) onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xs,
+        ),
+        itemCount: tags.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
+        itemBuilder: (_, i) {
+          final tag = tags[i];
+          final selected = selectedTags.contains(tag);
+          return FilterChip(
+            label: Text(tag),
+            selected: selected,
+            onSelected: (_) => onToggle(tag),
+            visualDensity: VisualDensity.compact,
+          );
+        },
+      ),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sheetshow/core/services/error_display_service.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/core/theme/app_typography.dart';
 import 'package:sheetshow/features/library/models/folder_model.dart';
@@ -149,14 +150,21 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
   Future<void> _createFolder() async {
     final name = await _promptFolderName(context, 'New Folder');
     if (name == null || name.isEmpty) return;
-    await ref.read(folderRepositoryProvider).create(
-          FolderModel(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            name: name,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-        );
+    try {
+      await ref.read(folderRepositoryProvider).create(
+            FolderModel(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              name: name,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          );
+    } on DuplicateFolderNameException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
   }
 
   Future<void> _createSubfolder(FolderModel parent) async {

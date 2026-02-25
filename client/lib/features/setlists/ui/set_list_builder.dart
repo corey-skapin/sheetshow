@@ -34,7 +34,20 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
   List<SetListEntryModel> _entries = [];
 
   List<ScoreModel> _searchResults = [];
+  final Set<String> _searchFilterTags = {};
   Map<String, ScoreModel> _scoreCache = {};
+
+  List<String> get _allSearchTags => {
+        for (final s in _searchResults) ...s.effectiveTags,
+      }.toList()
+        ..sort();
+
+  List<ScoreModel> get _filteredSearchResults => _searchFilterTags.isEmpty
+      ? _searchResults
+      : _searchResults
+          .where((s) =>
+              _searchFilterTags.every((t) => s.effectiveTags.contains(t)))
+          .toList();
   int? _dragHoverIndex;
   bool _isDraggingFromSearch = false;
 
@@ -512,6 +525,8 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
   // ─── Search panel ────────────────────────────────────────────────────────
 
   Widget _buildSearchPanel() {
+    final allTags = _allSearchTags;
+    final results = _filteredSearchResults;
     return Column(
       children: [
         Padding(
@@ -523,17 +538,46 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
               isDense: true,
             ),
             onChanged: (q) async {
-              final results =
+              final r =
                   await ref.read(searchServiceProvider).searchStream(q).first;
-              if (mounted) setState(() => _searchResults = results);
+              if (mounted) setState(() => _searchResults = r);
             },
           ),
         ),
+        if (allTags.isNotEmpty)
+          SizedBox(
+            height: 44,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              itemCount: allTags.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 4),
+              itemBuilder: (_, i) {
+                final tag = allTags[i];
+                final sel = _searchFilterTags.contains(tag);
+                return FilterChip(
+                  label: Text(tag),
+                  selected: sel,
+                  onSelected: (_) => setState(() {
+                    if (sel) {
+                      _searchFilterTags.remove(tag);
+                    } else {
+                      _searchFilterTags.add(tag);
+                    }
+                  }),
+                  visualDensity: VisualDensity.compact,
+                );
+              },
+            ),
+          ),
         Expanded(
           child: ListView.builder(
-            itemCount: _searchResults.length,
+            itemCount: results.length,
             itemBuilder: (_, i) {
-              final score = _searchResults[i];
+              final score = results[i];
               return Draggable<ScoreModel>(
                 data: score,
                 onDragStarted: () =>

@@ -28,6 +28,13 @@ class FolderRepository {
     if (folder.parentFolderId != null) {
       final depth = await getDepth(folder.parentFolderId!);
       if (depth >= kMaxFolderDepth) throw const FolderDepthException();
+    } else {
+      // Root-level folders must have unique names.
+      final dup = await (_db.select(_db.folders)
+            ..where(
+                (f) => f.name.equals(folder.name) & f.parentFolderId.isNull()))
+          .getSingleOrNull();
+      if (dup != null) throw DuplicateFolderNameException(folder.name);
     }
     await _db.into(_db.folders).insert(
           FoldersCompanion.insert(
