@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:sheetshow/core/theme/app_theme.dart';
 import 'package:sheetshow/features/library/ui/library_screen.dart';
 import 'package:sheetshow/features/reader/models/reader_args.dart';
@@ -61,8 +62,14 @@ void main() {
   // Workaround for Flutter Windows keyboard state assertion bug:
   // https://github.com/flutter/flutter/issues/107579
   runZonedGuarded(
-    () {
+    () async {
       WidgetsFlutterBinding.ensureInitialized();
+      await windowManager.ensureInitialized();
+      await windowManager.setPreventClose(true);
+      windowManager.waitUntilReadyToShow(const WindowOptions(), () async {
+        await windowManager.show();
+        await windowManager.focus();
+      });
       runApp(
         const ProviderScope(
           child: SheetShowApp(),
@@ -77,11 +84,35 @@ void main() {
   );
 }
 
-class SheetShowApp extends ConsumerWidget {
+class SheetShowApp extends ConsumerStatefulWidget {
   const SheetShowApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SheetShowApp> createState() => _SheetShowAppState();
+}
+
+class _SheetShowAppState extends ConsumerState<SheetShowApp>
+    with WindowListener {
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  /// Default close handler — allows close when no screen overrides it.
+  @override
+  void onWindowClose() async {
+    await windowManager.destroy();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'SheetShow',
       theme: AppTheme.light,

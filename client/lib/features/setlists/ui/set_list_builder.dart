@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/services/search_service.dart';
@@ -21,7 +24,8 @@ class SetListBuilderScreen extends ConsumerStatefulWidget {
       _SetListBuilderScreenState();
 }
 
-class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
+class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
+    with WindowListener {
   // ─── State ────────────────────────────────────────────────────────────────
 
   String _setListName = '';
@@ -34,16 +38,48 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
   int? _dragHoverIndex;
   bool _isDraggingFromSearch = false;
 
-  /// Number of in-flight DB writes. While > 0, _loadSetList() is a no-op.
-  int _pendingWrites = 0;
+  /// Tracks in-flight DB writes. Notifies the exit dialog reactively.
+  final ValueNotifier<int> _pendingWrites = ValueNotifier(0);
+
+  /// Index of the entry whose position number is being edited inline.
+  int? _editingIndex;
+  final TextEditingController _posController = TextEditingController();
+  final FocusNode _posFocusNode = FocusNode();
+
+  final ScrollController _scrollController = ScrollController();
 
   // ─── Init ─────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(this);
     _loadSetList();
     _loadAllScores();
+    _posFocusNode.addListener(() {
+      if (!_posFocusNode.hasFocus) _commitPositionEdit();
+    });
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    _pendingWrites.dispose();
+    _posController.dispose();
+    _posFocusNode.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // ─── WindowListener (app close button) ───────────────────────────────────
+
+  @override
+  void onWindowClose() async {
+    if (_pendingWrites.value > 0) {
+      await _showExitDialog(isAppClose: true);
+    } else {
+      await windowManager.destroy();
+    }
   }
 
   Future<void> _loadAllScores() async {
@@ -59,15 +95,21 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
 
   /// Syncs from DB only when no writes are pending (avoids clobbering optimistic state).
   Future<void> _loadSetList() async {
-    if (_pendingWrites > 0) return;
+    if (_pendingWrites.value > 0) return;
     final sl = await ref
         .read(setListRepositoryProvider)
         .getWithEntries(widget.setListId);
-    if (!mounted || _pendingWrites > 0) return;
+    if (!mounted || _pendingWrites.value > 0) return;
     setState(() {
       _setListName = sl?.name ?? '';
       _entries = sl?.entries ?? [];
     });
+  }
+
+  void _incPending() => _pendingWrites.value++;
+  Future<void> _decPending() async {
+    _pendingWrites.value--;
+    if (_pendingWrites.value == 0 && mounted) await _loadSetList();
   }
 
   // ─── Mutations (optimistic-first, persist in background) ──────────────────
@@ -91,14 +133,14 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
       addedAt: DateTime.now(),
     );
     setState(() => _entries = [..._entries, newEntry]);
-    _pendingWrites++;
+    _scrollToBottom();
+    _incPending();
     try {
       await ref
           .read(setListRepositoryProvider)
           .addEntry(widget.setListId, score.id, id: entryId);
     } finally {
-      _pendingWrites--;
-      if (_pendingWrites == 0 && mounted) await _loadSetList();
+      await _decPending();
     }
   }
 
@@ -109,27 +151,44 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
     final entry = entries.removeAt(oldIndex);
     entries.insert(newIndex, entry);
     setState(() => _entries = entries);
-    _pendingWrites++;
+    _incPending();
     try {
       await ref.read(setListRepositoryProvider).reorderEntries(
             widget.setListId,
             entries.map((e) => e.id).toList(),
           );
     } finally {
-      _pendingWrites--;
-      if (_pendingWrites == 0 && mounted) await _loadSetList();
+      await _decPending();
+    }
+  }
+
+  /// Move entry at [fromIndex] to 1-based [toPosition] (from the position editor).
+  Future<void> _moveToPosition(int fromIndex, int toPosition) async {
+    final targetIndex = (toPosition - 1).clamp(0, _entries.length - 1);
+    if (targetIndex == fromIndex) return;
+    final entries = List.of(_entries);
+    final entry = entries.removeAt(fromIndex);
+    entries.insert(targetIndex, entry);
+    setState(() => _entries = entries);
+    _incPending();
+    try {
+      await ref.read(setListRepositoryProvider).reorderEntries(
+            widget.setListId,
+            entries.map((e) => e.id).toList(),
+          );
+    } finally {
+      await _decPending();
     }
   }
 
   /// Remove an entry immediately; persists in background.
   Future<void> _removeEntry(String entryId) async {
     setState(() => _entries = _entries.where((e) => e.id != entryId).toList());
-    _pendingWrites++;
+    _incPending();
     try {
       await ref.read(setListRepositoryProvider).removeEntry(entryId);
     } finally {
-      _pendingWrites--;
-      if (_pendingWrites == 0 && mounted) await _loadSetList();
+      await _decPending();
     }
   }
 
@@ -149,7 +208,8 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
       _entries = entries;
       _dragHoverIndex = null;
     });
-    _pendingWrites++;
+    if (clampedIndex >= _entries.length - 1) _scrollToBottom();
+    _incPending();
     try {
       await ref
           .read(setListRepositoryProvider)
@@ -159,9 +219,83 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
             entries.map((e) => e.id).toList(),
           );
     } finally {
-      _pendingWrites--;
-      if (_pendingWrites == 0 && mounted) await _loadSetList();
+      await _decPending();
     }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  // ─── Position editing ─────────────────────────────────────────────────────
+
+  void _startPositionEdit(int index) {
+    setState(() {
+      _editingIndex = index;
+      _posController.text = '${index + 1}';
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _posFocusNode.requestFocus();
+      _posController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _posController.text.length,
+      );
+    });
+  }
+
+  void _commitPositionEdit() {
+    final editing = _editingIndex;
+    if (editing == null) return;
+    final pos = int.tryParse(_posController.text);
+    setState(() => _editingIndex = null);
+    if (pos != null && pos >= 1 && pos <= _entries.length) {
+      _moveToPosition(editing, pos);
+    }
+  }
+
+  // ─── Navigation / exit ────────────────────────────────────────────────────
+
+  Future<void> _onBackPressed() async {
+    if (_pendingWrites.value > 0) {
+      await _showExitDialog(isAppClose: false);
+    } else {
+      if (mounted) context.go('/setlists');
+    }
+  }
+
+  Future<void> _showExitDialog({required bool isAppClose}) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _PendingWritesExitDialog(
+        pendingWrites: _pendingWrites,
+        onClose: () {
+          Navigator.of(context).pop();
+          if (isAppClose) {
+            windowManager.destroy();
+          } else {
+            context.go('/setlists');
+          }
+        },
+        onForceClose: () {
+          if (isAppClose) {
+            exit(0);
+          } else {
+            Navigator.of(context).pop();
+            context.go('/setlists');
+          }
+        },
+        isAppClose: isAppClose,
+      ),
+    );
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────
@@ -170,7 +304,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(onPressed: () => context.go('/setlists')),
+        leading: BackButton(onPressed: _onBackPressed),
         title: Text(_setListName.isEmpty ? '…' : _setListName),
         actions: [
           ElevatedButton.icon(
@@ -244,6 +378,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
       children: [
         Expanded(
           child: ReorderableListView.builder(
+            scrollController: _scrollController,
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, 0),
             buildDefaultDragHandles: false,
@@ -286,10 +421,37 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
                   children: [
                     dropZone(i),
                     ListTile(
-                      leading: Text(
-                        '${i + 1}',
-                        style: theme.textTheme.titleMedium,
-                      ),
+                      leading: _editingIndex == i
+                          ? SizedBox(
+                              width: 48,
+                              child: TextField(
+                                controller: _posController,
+                                focusNode: _posFocusNode,
+                                textAlign: TextAlign.center,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly
+                                ],
+                                style: theme.textTheme.titleMedium,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  contentPadding:
+                                      EdgeInsets.symmetric(vertical: 4),
+                                  border: OutlineInputBorder(),
+                                ),
+                                onSubmitted: (_) => _commitPositionEdit(),
+                              ),
+                            )
+                          : GestureDetector(
+                              onTap: () => _startPositionEdit(i),
+                              child: Tooltip(
+                                message: 'Tap to change position',
+                                child: Text(
+                                  '${i + 1}',
+                                  style: theme.textTheme.titleMedium,
+                                ),
+                              ),
+                            ),
                       title: Text(score?.title ?? '…'),
                       subtitle: Text('${score?.totalPages ?? 0} pages'),
                       trailing: Row(
@@ -413,6 +575,65 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
                 ),
               );
             },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Exit dialog ─────────────────────────────────────────────────────────────
+
+class _PendingWritesExitDialog extends StatelessWidget {
+  const _PendingWritesExitDialog({
+    required this.pendingWrites,
+    required this.onClose,
+    required this.onForceClose,
+    required this.isAppClose,
+  });
+
+  final ValueNotifier<int> pendingWrites;
+  final VoidCallback onClose;
+  final VoidCallback onForceClose;
+  final bool isAppClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Saving in progress'),
+      content: ValueListenableBuilder<int>(
+        valueListenable: pendingWrites,
+        builder: (_, pending, __) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              pending > 0
+                  ? 'There ${pending == 1 ? 'is' : 'are'} $pending pending '
+                      '${pending == 1 ? 'change' : 'changes'} being saved. '
+                      'Please wait before closing.'
+                  : 'All changes saved. You can close safely.',
+            ),
+            if (pending > 0) ...[
+              const SizedBox(height: 16),
+              const LinearProgressIndicator(),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: onForceClose,
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
+          child: Text(isAppClose ? 'Force quit' : 'Discard & leave'),
+        ),
+        ValueListenableBuilder<int>(
+          valueListenable: pendingWrites,
+          builder: (_, pending, __) => FilledButton(
+            onPressed: pending == 0 ? onClose : null,
+            child: Text(isAppClose ? 'Close' : 'Leave'),
           ),
         ),
       ],
