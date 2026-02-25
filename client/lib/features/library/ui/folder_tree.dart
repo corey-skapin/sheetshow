@@ -32,7 +32,7 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // "All scores" root node
+        // "All scores" root node — also acts as drop target to unparent folders
         _FolderNode(
           label: 'All Scores',
           icon: Icons.library_music,
@@ -40,7 +40,10 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
           isExpanded: false,
           hasChildren: false,
           onTap: () => widget.onFolderSelected(null),
-          onAcceptDrop: (_) {},
+          onAcceptScoreDrop: (_) {},
+          onWillAcceptFolder: (_) => true,
+          onAcceptFolderDrop: (folder) =>
+              ref.read(folderRepositoryProvider).reparent(folder.id, null),
         ),
         const Divider(height: 1),
         // Folder list
@@ -82,28 +85,63 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
 
     return Column(
       children: [
-        _FolderNode(
-          label: folder.name,
-          icon: Icons.folder_outlined,
-          depth: depth,
-          isSelected: widget.selectedFolderId == folder.id,
-          isExpanded: _expanded.contains(folder.id),
-          hasChildren: children.isNotEmpty,
-          onTap: () => widget.onFolderSelected(folder.id),
-          onToggleExpand: () => setState(() {
-            if (_expanded.contains(folder.id)) {
-              _expanded.remove(folder.id);
-            } else {
-              _expanded.add(folder.id);
-            }
-          }),
-          onAcceptDrop: (score) => _moveScoreToFolder(score, folder.id),
-          onRename: () => _renameFolder(folder),
-          onDelete: () => _deleteFolder(folder),
+        Draggable<FolderModel>(
+          data: folder,
+          feedback: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.folder, size: 18),
+                  const SizedBox(width: 6),
+                  Text(folder.name),
+                ],
+              ),
+            ),
+          ),
+          childWhenDragging: Opacity(
+              opacity: 0.4,
+              child: _buildNode(folder, children, allFolders, depth)),
+          child: _buildNode(folder, children, allFolders, depth),
         ),
         if (_expanded.contains(folder.id))
           ...children.map((c) => _buildFolderTree(c, allFolders, depth + 1)),
       ],
+    );
+  }
+
+  Widget _buildNode(
+    FolderModel folder,
+    List<FolderModel> children,
+    List<FolderModel> allFolders,
+    int depth,
+  ) {
+    return _FolderNode(
+      folderId: folder.id,
+      label: folder.name,
+      icon: Icons.folder_outlined,
+      depth: depth,
+      isSelected: widget.selectedFolderId == folder.id,
+      isExpanded: _expanded.contains(folder.id),
+      hasChildren: children.isNotEmpty,
+      onTap: () => widget.onFolderSelected(folder.id),
+      onToggleExpand: () => setState(() {
+        if (_expanded.contains(folder.id)) {
+          _expanded.remove(folder.id);
+        } else {
+          _expanded.add(folder.id);
+        }
+      }),
+      onAcceptScoreDrop: (score) => _moveScoreToFolder(score, folder.id),
+      onWillAcceptFolder: (dragged) =>
+          !_wouldCreateCycle(dragged.id, folder.id, allFolders),
+      onAcceptFolderDrop: (dragged) => _moveFolderToFolder(dragged, folder.id),
+      onRename: () => _renameFolder(folder),
+      onDelete: () => _deleteFolder(folder),
+      onNewSubfolder: () => _createSubfolder(folder),
     );
   }
 
@@ -118,6 +156,49 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
             updatedAt: DateTime.now(),
           ),
         );
+  }
+
+  Future<void> _createSubfolder(FolderModel parent) async {
+    final name = await _promptFolderName(context, 'New Folder');
+    if (name == null || name.isEmpty) return;
+    await ref.read(folderRepositoryProvider).create(
+          FolderModel(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: name,
+            parentFolderId: parent.id,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+    setState(() => _expanded.add(parent.id));
+  }
+
+  Future<void> _moveFolderToFolder(
+      FolderModel dragged, String targetFolderId) async {
+    await ref
+        .read(folderRepositoryProvider)
+        .reparent(dragged.id, targetFolderId);
+    setState(() => _expanded.add(targetFolderId));
+  }
+
+  /// Returns true if making [targetId] the parent of [draggedId] would create
+  /// a cycle (i.e., [targetId] is [draggedId] or a descendant of it).
+  bool _wouldCreateCycle(
+    String draggedId,
+    String targetId,
+    List<FolderModel> allFolders,
+  ) {
+    if (draggedId == targetId) return true;
+    var current = targetId;
+    final visited = <String>{};
+    while (true) {
+      if (visited.contains(current)) return false;
+      visited.add(current);
+      final folder = allFolders.where((f) => f.id == current).firstOrNull;
+      if (folder == null || folder.parentFolderId == null) return false;
+      if (folder.parentFolderId == draggedId) return true;
+      current = folder.parentFolderId!;
+    }
   }
 
   Future<void> _renameFolder(FolderModel folder) async {
@@ -191,11 +272,15 @@ class _FolderNode extends StatelessWidget {
     required this.isExpanded,
     required this.hasChildren,
     required this.onTap,
-    required this.onAcceptDrop,
+    required this.onAcceptScoreDrop,
+    this.folderId,
     this.depth = 0,
     this.onToggleExpand,
     this.onRename,
     this.onDelete,
+    this.onNewSubfolder,
+    this.onWillAcceptFolder,
+    this.onAcceptFolderDrop,
   });
 
   final String label;
@@ -204,17 +289,33 @@ class _FolderNode extends StatelessWidget {
   final bool isExpanded;
   final bool hasChildren;
   final VoidCallback onTap;
-  final void Function(ScoreModel) onAcceptDrop;
+  final void Function(ScoreModel) onAcceptScoreDrop;
+  final String? folderId;
   final int depth;
   final VoidCallback? onToggleExpand;
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
+  final VoidCallback? onNewSubfolder;
+  final bool Function(FolderModel)? onWillAcceptFolder;
+  final void Function(FolderModel)? onAcceptFolderDrop;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return DragTarget<ScoreModel>(
-      onAcceptWithDetails: (details) => onAcceptDrop(details.data),
+    return DragTarget<Object>(
+      onWillAcceptWithDetails: (details) {
+        if (details.data is FolderModel) {
+          return onWillAcceptFolder?.call(details.data as FolderModel) ?? false;
+        }
+        return details.data is ScoreModel;
+      },
+      onAcceptWithDetails: (details) {
+        if (details.data is FolderModel) {
+          onAcceptFolderDrop?.call(details.data as FolderModel);
+        } else if (details.data is ScoreModel) {
+          onAcceptScoreDrop(details.data as ScoreModel);
+        }
+      },
       builder: (context, candidateData, rejectedData) {
         final isHovered = candidateData.isNotEmpty;
         return Semantics(
@@ -248,14 +349,20 @@ class _FolderNode extends StatelessWidget {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (onRename != null || onDelete != null)
+                if (onRename != null ||
+                    onDelete != null ||
+                    onNewSubfolder != null)
                   PopupMenuButton<String>(
                     iconSize: 16,
                     onSelected: (v) {
                       if (v == 'rename') onRename?.call();
                       if (v == 'delete') onDelete?.call();
+                      if (v == 'subfolder') onNewSubfolder?.call();
                     },
                     itemBuilder: (_) => [
+                      if (onNewSubfolder != null)
+                        const PopupMenuItem(
+                            value: 'subfolder', child: Text('New subfolder')),
                       if (onRename != null)
                         const PopupMenuItem(
                             value: 'rename', child: Text('Rename')),

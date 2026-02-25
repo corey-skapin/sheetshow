@@ -65,8 +65,8 @@ class ImportService {
   }
 
   /// Open a directory picker. Creates a new app folder named after the chosen
-  /// directory (nested under [parentFolderId] if provided), then imports all
-  /// PDF files found inside into that new folder.
+  /// directory (nested under [parentFolderId] if provided), then recursively
+  /// imports all PDFs — preserving sub-directory structure as nested app folders.
   ///
   /// [onProgress] is called after each successful import with (done, total).
   /// [cancelToken] can be used to stop after the current file finishes.
@@ -78,32 +78,98 @@ class ImportService {
     final dirPath = await FilePicker.platform.getDirectoryPath();
     if (dirPath == null) return [];
 
-    // Scan the directory in a background isolate to avoid blocking the UI thread.
-    final pdfPaths = await compute(_scanForPdfs, dirPath);
+    // Count total PDFs across all subdirectories for accurate progress.
+    final allPdfPaths = await compute(_scanForPdfs, dirPath);
+    if (allPdfPaths.isEmpty) return [];
 
-    if (pdfPaths.isEmpty) return [];
+    final total = allPdfPaths.length;
+    final done = _Counter();
 
-    // Create a new app folder named after the chosen directory.
-    final folderName = path.basename(dirPath);
-    final now = clockService.now();
-    final newFolder = FolderModel(
+    // Create root app folder named after the chosen directory.
+    final rootFolder = FolderModel(
       id: const Uuid().v4(),
-      name: folderName,
+      name: path.basename(dirPath),
       parentFolderId: parentFolderId,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: clockService.now(),
+      updatedAt: clockService.now(),
     );
-    await folderRepository.create(newFolder);
+    await folderRepository.create(rootFolder);
 
-    return _importPaths(
-      pdfPaths,
-      folderId: newFolder.id,
-      onProgress: onProgress,
-      cancelToken: cancelToken,
+    return _importDirRecursive(
+      dirPath,
+      rootFolder.id,
+      cancelToken,
+      onProgress,
+      done,
+      total,
     );
   }
 
   // ─── Internal ──────────────────────────────────────────────────────────────
+
+  /// Recursively import a directory: imports PDFs directly inside [dirPath]
+  /// into [parentFolderId], then creates a child app folder for each
+  /// subdirectory and recurses into it.
+  Future<List<ScoreModel>> _importDirRecursive(
+    String dirPath,
+    String? parentFolderId,
+    CancellationToken? cancelToken,
+    void Function(int done, int total)? onProgress,
+    _Counter done,
+    int total,
+  ) async {
+    final results = <ScoreModel>[];
+
+    final entries = await Directory(dirPath).list().toList();
+    final pdfs = entries
+        .whereType<File>()
+        .where((f) => f.path.toLowerCase().endsWith('.pdf'))
+        .toList();
+    final subdirs = entries.whereType<Directory>().toList();
+
+    // Import PDFs in this directory.
+    for (final pdfFile in pdfs) {
+      if (cancelToken?.isCancelled == true) return results;
+      try {
+        final score =
+            await _importSingleFile(pdfFile.path, folderId: parentFolderId);
+        if (score != null) {
+          results.add(score);
+          done.value++;
+          onProgress?.call(done.value, total);
+        }
+      } catch (_) {
+        done.value++;
+        onProgress?.call(done.value, total);
+      }
+    }
+
+    // Recurse into subdirectories.
+    for (final subdir in subdirs) {
+      if (cancelToken?.isCancelled == true) return results;
+      try {
+        final subFolder = FolderModel(
+          id: const Uuid().v4(),
+          name: path.basename(subdir.path),
+          parentFolderId: parentFolderId,
+          createdAt: clockService.now(),
+          updatedAt: clockService.now(),
+        );
+        await folderRepository.create(subFolder);
+        final subResults = await _importDirRecursive(
+          subdir.path,
+          subFolder.id,
+          cancelToken,
+          onProgress,
+          done,
+          total,
+        );
+        results.addAll(subResults);
+      } catch (_) {}
+    }
+
+    return results;
+  }
 
   Future<List<ScoreModel>> _importPaths(
     List<String> paths, {
@@ -188,6 +254,11 @@ class ImportService {
       // Skip space check if unable to determine
     }
   }
+}
+
+/// Mutable counter threaded through recursive import to track progress.
+class _Counter {
+  int value = 0;
 }
 
 /// Top-level function for use with [compute] — scans [dirPath] for PDF files

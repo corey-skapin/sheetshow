@@ -17,7 +17,7 @@ class ScoreRepository {
     if (folderId != null) {
       query.where((s) => s.folderId.equals(folderId));
     }
-    query.orderBy([(s) => OrderingTerm.desc(s.updatedAt)]);
+    query.orderBy([(s) => OrderingTerm.asc(s.title)]);
     return query.watch().map(
           (rows) => rows.map(_mapRow).toList(),
         );
