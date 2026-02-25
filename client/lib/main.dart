@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -107,8 +108,8 @@ class _SheetShowAppState extends ConsumerState<SheetShowApp>
 
   /// Default close handler — allows close when no screen overrides it.
   @override
-  void onWindowClose() async {
-    await windowManager.destroy();
+  void onWindowClose() {
+    exit(0);
   }
 
   @override

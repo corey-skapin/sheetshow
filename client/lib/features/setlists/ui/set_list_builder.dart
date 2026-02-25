@@ -78,7 +78,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
     if (_pendingWrites.value > 0) {
       await _showExitDialog(isAppClose: true);
     } else {
-      await windowManager.destroy();
+      exit(0);
     }
   }
 
@@ -280,7 +280,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
         onClose: () {
           Navigator.of(context).pop();
           if (isAppClose) {
-            windowManager.destroy();
+            exit(0);
           } else {
             context.go('/setlists');
           }
