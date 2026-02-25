@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
@@ -30,6 +31,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   (int, int)? _importProgress;
   bool get _isImporting => _importProgress != null;
   CancellationToken? _cancelToken;
+
+  // ─── Multi-select ──────────────────────────────────────────────────────────
+  final Set<String> _selectedIds = {};
+
+  void _toggleSelect(ScoreModel score) {
+    setState(() {
+      if (_selectedIds.contains(score.id)) {
+        _selectedIds.remove(score.id);
+      } else {
+        _selectedIds.add(score.id);
+      }
+    });
+  }
+
+  void _clearSelection() => setState(() => _selectedIds.clear());
 
   @override
   void dispose() {
@@ -82,41 +98,59 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 _selectedFolderId = id;
                 _searchQuery = '';
                 _searchController.clear();
+                _selectedIds.clear();
               }),
             ),
           ),
           const VerticalDivider(width: 1),
           // Score grid
           Expanded(
-            child: StreamBuilder<List<ScoreModel>>(
-              stream: _searchQuery.trim().isNotEmpty
-                  ? searchService.searchStream(_searchQuery)
-                  : scoreRepo.watchAll(folderId: _selectedFolderId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final scores = snapshot.data ?? [];
-                if (scores.isEmpty) {
-                  return _EmptyState(onImport: _importFiles);
-                }
-                return _ScoreGrid(
-                  scores: scores,
-                  onTap: (score) {
-                    final index = scores.indexOf(score);
-                    context.push(
-                      '/reader/${score.id}',
-                      extra: ReaderArgs(
-                        score: score,
+            child: Column(
+              children: [
+                if (_selectedIds.isNotEmpty)
+                  _SelectionBar(
+                    count: _selectedIds.length,
+                    onClear: _clearSelection,
+                    onEditTags: _bulkEditTags,
+                    onDelete: _bulkDelete,
+                  ),
+                Expanded(
+                  child: StreamBuilder<List<ScoreModel>>(
+                    stream: _searchQuery.trim().isNotEmpty
+                        ? searchService.searchStream(_searchQuery)
+                        : scoreRepo.watchAll(folderId: _selectedFolderId),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final scores = snapshot.data ?? [];
+                      if (scores.isEmpty && _selectedIds.isEmpty) {
+                        return _EmptyState(onImport: _importFiles);
+                      }
+                      return _ScoreGrid(
                         scores: scores,
-                        currentIndex: index,
-                      ),
-                    );
-                  },
-                  onContextMenu: (score) =>
-                      _showContextMenu(score, folderId: _selectedFolderId),
-                );
-              },
+                        selectedIds: _selectedIds,
+                        onTap: (score) {
+                          final index = scores.indexOf(score);
+                          context.push(
+                            '/reader/${score.id}',
+                            extra: ReaderArgs(
+                              score: score,
+                              scores: scores,
+                              currentIndex: index,
+                            ),
+                          );
+                        },
+                        onToggleSelect: _toggleSelect,
+                        onContextMenu: (score) => _showContextMenu(
+                          score,
+                          folderId: _selectedFolderId,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -195,17 +229,58 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       builder: (_) => ScoreDetailSheet(score: score, folderId: folderId),
     );
   }
+
+  Future<void> _bulkEditTags() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _BulkTagDialog(scoreIds: _selectedIds.toList()),
+    );
+  }
+
+  Future<void> _bulkDelete() async {
+    final count = _selectedIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Scores'),
+        content: Text(
+          'Delete $count score${count == 1 ? '' : 's'}? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      final repo = ref.read(scoreRepositoryProvider);
+      for (final id in _selectedIds.toList()) {
+        await repo.delete(id);
+      }
+      _clearSelection();
+    }
+  }
 }
 
 class _ScoreGrid extends StatelessWidget {
   const _ScoreGrid({
     required this.scores,
+    required this.selectedIds,
     required this.onTap,
+    required this.onToggleSelect,
     required this.onContextMenu,
   });
 
   final List<ScoreModel> scores;
+  final Set<String> selectedIds;
   final void Function(ScoreModel) onTap;
+  final void Function(ScoreModel) onToggleSelect;
   final void Function(ScoreModel) onContextMenu;
 
   @override
@@ -221,15 +296,259 @@ class _ScoreGrid extends StatelessWidget {
       itemCount: scores.length,
       itemBuilder: (ctx, i) {
         final score = scores[i];
+        final isSelected = selectedIds.contains(score.id);
         return GestureDetector(
           onLongPress: () => onContextMenu(score),
           onSecondaryTap: () => onContextMenu(score),
           child: ScoreCard(
             score: score,
-            onTap: () => onTap(score),
+            isSelected: isSelected,
+            onTap: () {
+              // Ctrl+click, or click while any item is selected → toggle
+              if (selectedIds.isNotEmpty ||
+                  HardwareKeyboard.instance.isControlPressed) {
+                onToggleSelect(score);
+              } else {
+                onTap(score);
+              }
+            },
           ),
         );
       },
+    );
+  }
+}
+
+// ─── Selection bar ────────────────────────────────────────────────────────────
+
+class _SelectionBar extends StatelessWidget {
+  const _SelectionBar({
+    required this.count,
+    required this.onClear,
+    required this.onEditTags,
+    required this.onDelete,
+  });
+
+  final int count;
+  final VoidCallback onClear;
+  final VoidCallback onEditTags;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xs,
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Clear selection',
+              onPressed: onClear,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              '$count selected',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colorScheme.onSecondaryContainer,
+                  ),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: onEditTags,
+              icon: const Icon(Icons.label_outline),
+              label: const Text('Edit tags'),
+            ),
+            TextButton.icon(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Delete'),
+              style: TextButton.styleFrom(
+                foregroundColor: colorScheme.error,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Bulk tag dialog ─────────────────────────────────────────────────────────
+
+class _BulkTagDialog extends ConsumerStatefulWidget {
+  const _BulkTagDialog({required this.scoreIds});
+
+  final List<String> scoreIds;
+
+  @override
+  ConsumerState<_BulkTagDialog> createState() => _BulkTagDialogState();
+}
+
+class _BulkTagDialogState extends ConsumerState<_BulkTagDialog> {
+  List<String> _commonTags = [];
+  final Set<String> _tagsToRemove = {};
+  final List<String> _tagsToAdd = [];
+  final _controller = TextEditingController();
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final repo = ref.read(scoreRepositoryProvider);
+    final allTagSets = await Future.wait(
+      widget.scoreIds.map((id) => repo.getTags(id)),
+    );
+    if (allTagSets.isEmpty) return;
+    final common = allTagSets.first.toSet();
+    for (final tags in allTagSets.skip(1)) {
+      common.retainAll(tags);
+    }
+    if (mounted) {
+      setState(() {
+        _commonTags = common.toList()..sort();
+        _loading = false;
+      });
+    }
+  }
+
+  void _addTag(String tag) {
+    final t = tag.trim().toLowerCase();
+    if (t.isEmpty || _tagsToAdd.contains(t) || _commonTags.contains(t)) return;
+    setState(() => _tagsToAdd.add(t));
+    _controller.clear();
+  }
+
+  Future<void> _apply() async {
+    final repo = ref.read(scoreRepositoryProvider);
+    for (final id in widget.scoreIds) {
+      final current = await repo.getTags(id);
+      final updated = {
+        ...current.where((t) => !_tagsToRemove.contains(t)),
+        ..._tagsToAdd,
+      }.toList();
+      await repo.setTags(id, updated);
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.scoreIds.length;
+    return AlertDialog(
+      title: Text('Edit tags — $count score${count == 1 ? '' : 's'}'),
+      content: SizedBox(
+        width: 400,
+        child: _loading
+            ? const SizedBox(
+                height: 80,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_commonTags.isNotEmpty) ...[
+                    Text(
+                      'Common tags (remove from all):',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      children: _commonTags
+                          .map(
+                            (tag) => Chip(
+                              label: Text(tag),
+                              deleteIcon: _tagsToRemove.contains(tag)
+                                  ? const Icon(Icons.undo, size: 14)
+                                  : const Icon(Icons.close, size: 14),
+                              onDeleted: () => setState(() {
+                                if (_tagsToRemove.contains(tag)) {
+                                  _tagsToRemove.remove(tag);
+                                } else {
+                                  _tagsToRemove.add(tag);
+                                }
+                              }),
+                              backgroundColor: _tagsToRemove.contains(tag)
+                                  ? Theme.of(context).colorScheme.errorContainer
+                                  : null,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  if (_tagsToAdd.isNotEmpty) ...[
+                    Text(
+                      'Tags to add to all:',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      children: _tagsToAdd
+                          .map(
+                            (tag) => Chip(
+                              label: Text(tag),
+                              onDeleted: () =>
+                                  setState(() => _tagsToAdd.remove(tag)),
+                              deleteIcon: const Icon(Icons.close, size: 14),
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          decoration: const InputDecoration(
+                            hintText: 'Add tag to all…',
+                            isDense: true,
+                          ),
+                          onSubmitted: _addTag,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () => _addTag(_controller.text),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _loading ? null : _apply,
+          child: const Text('Apply'),
+        ),
+      ],
     );
   }
 }

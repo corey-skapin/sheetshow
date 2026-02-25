@@ -27,63 +27,83 @@ class ScoreCard extends StatelessWidget {
       label:
           'Score: ${score.title}. ${tags.isEmpty ? '' : 'Tags: ${tags.join(', ')}'}',
       button: true,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        color: isSelected
-            ? colorScheme.surfaceContainerHighest
-            : colorScheme.surface,
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Thumbnail
-              Expanded(
-                child: _buildThumbnail(colorScheme),
+      child: Stack(
+        children: [
+          Card(
+            clipBehavior: Clip.antiAlias,
+            color:
+                isSelected ? colorScheme.primaryContainer : colorScheme.surface,
+            shape: isSelected
+                ? RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: colorScheme.primary, width: 2),
+                  )
+                : null,
+            child: InkWell(
+              onTap: onTap,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Thumbnail
+                  Expanded(
+                    child: _buildThumbnail(colorScheme),
+                  ),
+                  // Title
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: Text(
+                      score.title,
+                      style: AppTypography.bodySmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Tags row
+                  if (tags.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: AppSpacing.sm,
+                        right: AppSpacing.sm,
+                        bottom: AppSpacing.xs,
+                      ),
+                      child: Wrap(
+                        spacing: AppSpacing.xs,
+                        children: tags
+                            .take(3)
+                            .map(
+                              (t) => Chip(
+                                label: Text(
+                                  t,
+                                  style: AppTypography.labelSmall,
+                                ),
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                ],
               ),
-              // Title
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                child: Text(
-                  score.title,
-                  style: AppTypography.bodySmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              // Tags row
-              if (tags.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: AppSpacing.sm,
-                    right: AppSpacing.sm,
-                    bottom: AppSpacing.xs,
-                  ),
-                  child: Wrap(
-                    spacing: AppSpacing.xs,
-                    children: tags
-                        .take(3)
-                        .map(
-                          (t) => Chip(
-                            label: Text(
-                              t,
-                              style: AppTypography.labelSmall,
-                            ),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
+          if (isSelected)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: CircleAvatar(
+                radius: 12,
+                backgroundColor: colorScheme.primary,
+                child:
+                    Icon(Icons.check, size: 16, color: colorScheme.onPrimary),
+              ),
+            ),
+        ],
       ),
     );
   }
