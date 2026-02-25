@@ -64,6 +64,59 @@ class FolderRepository {
     await (_db.delete(_db.folders)..where((f) => f.id.equals(id))).go();
   }
 
+  // ─── Folder tags ───────────────────────────────────────────────────────────
+
+  Future<List<String>> getTags(String folderId) async {
+    final rows = await (_db.select(_db.folderTags)
+          ..where((t) => t.folderId.equals(folderId)))
+        .get();
+    return rows.map((r) => r.tag).toList();
+  }
+
+  Stream<List<String>> watchTags(String folderId) {
+    return (_db.select(_db.folderTags)
+          ..where((t) => t.folderId.equals(folderId)))
+        .watch()
+        .map((rows) => rows.map((r) => r.tag).toList());
+  }
+
+  Future<void> setTags(String folderId, List<String> tags) async {
+    final normalised = tags.map((t) => t.trim().toLowerCase()).toSet();
+    await _db.transaction(() async {
+      await (_db.delete(_db.folderTags)
+            ..where((t) => t.folderId.equals(folderId)))
+          .go();
+      for (final tag in normalised) {
+        await _db.into(_db.folderTags).insert(
+              FolderTagsCompanion.insert(folderId: folderId, tag: tag),
+            );
+      }
+    });
+    // Rebuild FTS for all scores in this folder so searches include folder tags.
+    await _rebuildFtsForFolder(folderId, normalised.toList());
+  }
+
+  Future<void> _rebuildFtsForFolder(
+      String folderId, List<String> folderTags) async {
+    final memberships = await (_db.select(_db.scoreFolderMemberships)
+          ..where((m) => m.folderId.equals(folderId)))
+        .get();
+    for (final m in memberships) {
+      final score = await (_db.select(_db.scores)
+            ..where((s) => s.id.equals(m.scoreId)))
+          .getSingleOrNull();
+      if (score == null) continue;
+      final ownTagRows = await (_db.select(_db.scoreTags)
+            ..where((t) => t.scoreId.equals(m.scoreId)))
+          .get();
+      final allTags = {
+        ...ownTagRows.map((r) => r.tag),
+        ...folderTags,
+      };
+      await _db.rebuildScoreSearch(score.id, score.title, allTags.join(' '));
+    }
+  }
+
   /// Walk the parent chain to determine nesting depth (0 = root).
   Future<int> getDepth(String id) async {
     var depth = 0;

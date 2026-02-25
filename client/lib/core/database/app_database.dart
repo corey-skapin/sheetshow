@@ -40,6 +40,31 @@ class ScoreTags extends Table {
   Set<Column> get primaryKey => {scoreId, tag};
 }
 
+class ScoreFolderMemberships extends Table {
+  TextColumn get id => text()();
+  TextColumn get scoreId =>
+      text().references(Scores, #id, onDelete: KeyAction.cascade)();
+  TextColumn get folderId =>
+      text().references(Folders, #id, onDelete: KeyAction.cascade)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+        {scoreId, folderId},
+      ];
+}
+
+class FolderTags extends Table {
+  TextColumn get folderId =>
+      text().references(Folders, #id, onDelete: KeyAction.cascade)();
+  TextColumn get tag => text()();
+
+  @override
+  Set<Column> get primaryKey => {folderId, tag};
+}
+
 class SetLists extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
@@ -90,6 +115,8 @@ class AnnotationLayers extends Table {
     Scores,
     Folders,
     ScoreTags,
+    FolderTags,
+    ScoreFolderMemberships,
     SetLists,
     SetListEntries,
     AnnotationLayers,
@@ -101,7 +128,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -155,6 +182,28 @@ class AppDatabase extends _$AppDatabase {
             // Rebuild FTS index from existing scores
             await customStatement(
                 'INSERT INTO score_search(id, title, tags_flat) SELECT id, title, \'\' FROM scores');
+          }
+          if (from < 3) {
+            await customStatement('''
+              CREATE TABLE folder_tags (
+                folder_id TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+                tag TEXT NOT NULL,
+                PRIMARY KEY (folder_id, tag)
+              )
+            ''');
+            await customStatement('''
+              CREATE TABLE score_folder_memberships (
+                id TEXT NOT NULL PRIMARY KEY,
+                score_id TEXT NOT NULL REFERENCES scores(id) ON DELETE CASCADE,
+                folder_id TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+                UNIQUE (score_id, folder_id)
+              )
+            ''');
+            await customStatement('''
+              INSERT INTO score_folder_memberships(id, score_id, folder_id)
+              SELECT id || '-' || folder_id, id, folder_id
+              FROM scores WHERE folder_id IS NOT NULL
+            ''');
           }
         },
         beforeOpen: (details) async {

@@ -11,15 +11,24 @@ class ScoreRepository {
 
   // ─── Watch ────────────────────────────────────────────────────────────────
 
-  /// Reactive stream of all scores, newest first.
+  /// Reactive stream of all scores.
+  /// When [folderId] is set, returns only scores that have a membership in that folder.
   Stream<List<ScoreModel>> watchAll({String? folderId}) {
-    final query = _db.select(_db.scores);
-    if (folderId != null) {
-      query.where((s) => s.folderId.equals(folderId));
+    if (folderId == null) {
+      final query = _db.select(_db.scores)
+        ..orderBy([(s) => OrderingTerm.asc(s.title)]);
+      return query.watch().map((rows) => rows.map(_mapRow).toList());
     }
-    query.orderBy([(s) => OrderingTerm.asc(s.title)]);
+    final query = _db.select(_db.scores).join([
+      innerJoin(
+        _db.scoreFolderMemberships,
+        _db.scoreFolderMemberships.scoreId.equalsExp(_db.scores.id),
+      ),
+    ])
+      ..where(_db.scoreFolderMemberships.folderId.equals(folderId))
+      ..orderBy([OrderingTerm.asc(_db.scores.title)]);
     return query.watch().map(
-          (rows) => rows.map(_mapRow).toList(),
+          (rows) => rows.map((r) => _mapRow(r.readTable(_db.scores))).toList(),
         );
   }
 
@@ -47,7 +56,48 @@ class ScoreRepository {
             updatedAt: score.updatedAt,
           ),
         );
+    if (score.folderId != null) {
+      await _addMembership(score.id, score.folderId!);
+    }
     await _db.rebuildScoreSearch(score.id, score.title, '');
+  }
+
+  /// Add a score to a folder (creates a membership; score stays in all existing folders).
+  Future<void> addToFolder(String scoreId, String folderId) async {
+    await _addMembership(scoreId, folderId);
+  }
+
+  /// Remove a score from a specific folder (membership only; score is not deleted).
+  Future<void> removeFromFolder(String scoreId, String folderId) async {
+    await (_db.delete(_db.scoreFolderMemberships)
+          ..where(
+              (m) => m.scoreId.equals(scoreId) & m.folderId.equals(folderId)))
+        .go();
+  }
+
+  Future<void> _addMembership(String scoreId, String folderId) async {
+    await _db
+        .into(_db.scoreFolderMemberships)
+        .insertOnConflictUpdate(ScoreFolderMembershipsCompanion.insert(
+          id: '${scoreId}_$folderId',
+          scoreId: scoreId,
+          folderId: folderId,
+        ));
+  }
+
+  /// Returns the score's own tags merged with tags from all folders it belongs to.
+  Future<List<String>> getEffectiveTags(String scoreId) async {
+    final own = await getTags(scoreId);
+    final folderTagRows = await _db.customSelect(
+      '''
+      SELECT ft.tag FROM folder_tags ft
+      JOIN score_folder_memberships m ON m.folder_id = ft.folder_id
+      WHERE m.score_id = ?
+      ''',
+      variables: [Variable.withString(scoreId)],
+    ).get();
+    final folderTags = folderTagRows.map((r) => r.read<String>('tag')).toList();
+    return {...own, ...folderTags}.toList()..sort();
   }
 
   Future<void> update(ScoreModel score) async {

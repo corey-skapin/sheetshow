@@ -142,6 +142,7 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
       onRename: () => _renameFolder(folder),
       onDelete: () => _deleteFolder(folder),
       onNewSubfolder: () => _createSubfolder(folder),
+      onEditTags: () => _editFolderTags(folder),
     );
   }
 
@@ -231,10 +232,22 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
     }
   }
 
+  Future<void> _editFolderTags(FolderModel folder) async {
+    final tags = await ref.read(folderRepositoryProvider).getTags(folder.id);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _FolderTagDialog(
+        folder: folder,
+        initialTags: tags,
+        onSave: (newTags) =>
+            ref.read(folderRepositoryProvider).setTags(folder.id, newTags),
+      ),
+    );
+  }
+
   Future<void> _moveScoreToFolder(ScoreModel score, String folderId) async {
-    await ref
-        .read(scoreRepositoryProvider)
-        .update(score.copyWith(folderId: folderId));
+    await ref.read(scoreRepositoryProvider).addToFolder(score.id, folderId);
   }
 
   Future<String?> _promptFolderName(
@@ -279,6 +292,7 @@ class _FolderNode extends StatelessWidget {
     this.onRename,
     this.onDelete,
     this.onNewSubfolder,
+    this.onEditTags,
     this.onWillAcceptFolder,
     this.onAcceptFolderDrop,
   });
@@ -296,6 +310,7 @@ class _FolderNode extends StatelessWidget {
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
   final VoidCallback? onNewSubfolder;
+  final VoidCallback? onEditTags;
   final bool Function(FolderModel)? onWillAcceptFolder;
   final void Function(FolderModel)? onAcceptFolderDrop;
 
@@ -324,15 +339,35 @@ class _FolderNode extends StatelessWidget {
           child: ListTile(
             dense: true,
             contentPadding: EdgeInsets.only(
-              left: AppSpacing.sm + depth * AppSpacing.md,
+              left: depth * AppSpacing.md,
               right: AppSpacing.xs,
             ),
-            leading: Icon(
-              icon,
-              size: 20,
-              color: isSelected
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
+            // Expand arrow on left, then folder icon.
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 20,
+                  child: hasChildren
+                      ? GestureDetector(
+                          onTap: onToggleExpand,
+                          child: Icon(
+                            isExpanded
+                                ? Icons.keyboard_arrow_down
+                                : Icons.keyboard_arrow_right,
+                            size: 16,
+                          ),
+                        )
+                      : null,
+                ),
+                Icon(
+                  icon,
+                  size: 20,
+                  color: isSelected
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+                ),
+              ],
             ),
             title: Text(
               label,
@@ -346,23 +381,25 @@ class _FolderNode extends StatelessWidget {
                 : isSelected
                     ? colorScheme.surfaceContainerHighest
                     : null,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (onRename != null ||
+            trailing: (onRename != null ||
                     onDelete != null ||
-                    onNewSubfolder != null)
-                  PopupMenuButton<String>(
+                    onNewSubfolder != null ||
+                    onEditTags != null)
+                ? PopupMenuButton<String>(
                     iconSize: 16,
                     onSelected: (v) {
                       if (v == 'rename') onRename?.call();
                       if (v == 'delete') onDelete?.call();
                       if (v == 'subfolder') onNewSubfolder?.call();
+                      if (v == 'tags') onEditTags?.call();
                     },
                     itemBuilder: (_) => [
                       if (onNewSubfolder != null)
                         const PopupMenuItem(
                             value: 'subfolder', child: Text('New subfolder')),
+                      if (onEditTags != null)
+                        const PopupMenuItem(
+                            value: 'tags', child: Text('Edit tags')),
                       if (onRename != null)
                         const PopupMenuItem(
                             value: 'rename', child: Text('Rename')),
@@ -370,23 +407,116 @@ class _FolderNode extends StatelessWidget {
                         const PopupMenuItem(
                             value: 'delete', child: Text('Delete')),
                     ],
-                  ),
-                if (hasChildren)
-                  GestureDetector(
-                    onTap: onToggleExpand,
-                    child: Icon(
-                      isExpanded
-                          ? Icons.keyboard_arrow_down
-                          : Icons.keyboard_arrow_right,
-                      size: 16,
-                    ),
-                  ),
-              ],
-            ),
+                  )
+                : null,
             onTap: onTap,
           ),
         );
       },
+    );
+  }
+}
+
+// ─── Folder tag dialog ────────────────────────────────────────────────────────
+
+class _FolderTagDialog extends StatefulWidget {
+  const _FolderTagDialog({
+    required this.folder,
+    required this.initialTags,
+    required this.onSave,
+  });
+
+  final FolderModel folder;
+  final List<String> initialTags;
+  final Future<void> Function(List<String>) onSave;
+
+  @override
+  State<_FolderTagDialog> createState() => _FolderTagDialogState();
+}
+
+class _FolderTagDialogState extends State<_FolderTagDialog> {
+  late List<String> _tags;
+  final _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _tags = List.of(widget.initialTags);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _add(String tag) {
+    final t = tag.trim().toLowerCase();
+    if (t.isEmpty || _tags.contains(t)) return;
+    setState(() => _tags.add(t));
+    _controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Tags for "${widget.folder.name}"'),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'These tags are applied to all scores in this folder.',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: _tags
+                  .map((t) => Chip(
+                        label: Text(t),
+                        onDeleted: () => setState(() => _tags.remove(t)),
+                        deleteIcon: const Icon(Icons.close, size: 14),
+                      ))
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    autofocus: _tags.isEmpty,
+                    decoration: const InputDecoration(
+                        hintText: 'Add tag…', isDense: true),
+                    onSubmitted: _add,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () => _add(_controller.text),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            await widget.onSave(_tags);
+            if (context.mounted) Navigator.of(context).pop();
+          },
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

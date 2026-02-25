@@ -17,20 +17,29 @@ class ScoreDetailSheet extends ConsumerStatefulWidget {
 }
 
 class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
-  late List<String> _tags;
+  late List<String> _ownTags;
+  late List<String> _folderTags;
   final _tagController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _tags = [];
+    _ownTags = [];
+    _folderTags = [];
     _loadTags();
   }
 
   Future<void> _loadTags() async {
-    final tags =
-        await ref.read(scoreRepositoryProvider).getTags(widget.score.id);
-    if (mounted) setState(() => _tags = tags);
+    final repo = ref.read(scoreRepositoryProvider);
+    final own = await repo.getTags(widget.score.id);
+    final effective = await repo.getEffectiveTags(widget.score.id);
+    final folder = effective.where((t) => !own.contains(t)).toList();
+    if (mounted) {
+      setState(() {
+        _ownTags = own;
+        _folderTags = folder;
+      });
+    }
   }
 
   @override
@@ -68,11 +77,22 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
           Wrap(
             spacing: AppSpacing.xs,
             children: [
-              ..._tags.map(
+              ..._ownTags.map(
                 (tag) => Chip(
                   label: Text(tag),
                   onDeleted: () => _removeTag(tag),
                   deleteIcon: const Icon(Icons.close, size: 14),
+                ),
+              ),
+              ..._folderTags.map(
+                (tag) => Chip(
+                  avatar: const Icon(Icons.folder_outlined, size: 14),
+                  label: Text(tag),
+                  backgroundColor:
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                  labelStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -124,19 +144,19 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
 
   void _addTag(String tag) {
     final t = tag.trim().toLowerCase();
-    if (t.isEmpty || _tags.contains(t)) return;
-    setState(() => _tags.add(t));
+    if (t.isEmpty || _ownTags.contains(t)) return;
+    setState(() => _ownTags.add(t));
     _tagController.clear();
     _saveTags();
   }
 
   void _removeTag(String tag) {
-    setState(() => _tags.remove(tag));
+    setState(() => _ownTags.remove(tag));
     _saveTags();
   }
 
   Future<void> _saveTags() async {
-    await ref.read(scoreRepositoryProvider).setTags(widget.score.id, _tags);
+    await ref.read(scoreRepositoryProvider).setTags(widget.score.id, _ownTags);
   }
 
   Future<void> _renameScore() async {
