@@ -57,23 +57,17 @@ class SetListRepository {
   }
 
   Future<void> addEntry(String setListId, String scoreId) async {
-    final entries = await (_db.select(_db.setListEntries)
-          ..where((e) => e.setListId.equals(setListId))
-          ..orderBy([(e) => OrderingTerm.desc(e.orderIndex)]))
-        .get();
-    final nextIndex = entries.isEmpty ? 0 : entries.first.orderIndex + 1;
-
-    await _db.into(_db.setListEntries).insert(
-          SetListEntriesCompanion.insert(
-            id: const Uuid().v4(),
-            setListId: setListId,
-            scoreId: scoreId,
-            orderIndex: nextIndex,
-            addedAt: DateTime.now(),
-          ),
-        );
-
-    await _touchSetList(setListId);
+    final id = const Uuid().v4();
+    final now = DateTime.now();
+    await _db.transaction(() async {
+      // Compute next orderIndex in-DB to avoid a round-trip SELECT.
+      await _db.customStatement(
+        'INSERT INTO set_list_entries (id, set_list_id, score_id, order_index, added_at) '
+        'VALUES (?, ?, ?, COALESCE((SELECT MAX(order_index) + 1 FROM set_list_entries WHERE set_list_id = ?), 0), ?)',
+        [id, setListId, scoreId, setListId, now.millisecondsSinceEpoch],
+      );
+      await _touchSetList(setListId);
+    });
   }
 
   Future<void> removeEntry(String entryId) async {

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/services/search_service.dart';
+import 'package:sheetshow/features/setlists/models/set_list_entry_model.dart';
 import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
 import 'package:sheetshow/features/setlists/ui/performance_mode_screen.dart';
@@ -24,8 +25,9 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
   SetListModel? _setList;
   List<ScoreModel> _searchResults = [];
   Map<String, ScoreModel> _scoreCache = {};
-  int? _dragHoverIndex; // insertion index being hovered (null = none)
+  int? _dragHoverIndex;
   bool _isDraggingFromSearch = false;
+  final Set<String> _adding = {}; // scoreIds currently being added
 
   @override
   void initState() {
@@ -59,20 +61,65 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
     context.go('/setlists/${widget.setListId}/performance');
   }
 
-  /// Add [score] to the set list, then move it to [index].
+  /// Add [score] via + button: optimistic update + guard against double-tap.
+  Future<void> _addScore(ScoreModel score) async {
+    if (_adding.contains(score.id)) return;
+    final sl = _setList;
+    if (sl == null) return;
+
+    // Optimistic: immediately append a temp entry so the UI responds instantly.
+    final tempEntry = SetListEntryModel(
+      id: '_tmp_${score.id}',
+      setListId: widget.setListId,
+      scoreId: score.id,
+      orderIndex: sl.entries.length,
+      addedAt: DateTime.now(),
+    );
+    setState(() {
+      _adding.add(score.id);
+      _setList = sl.copyWith(entries: [...sl.entries, tempEntry]);
+    });
+
+    try {
+      await ref
+          .read(setListRepositoryProvider)
+          .addEntry(widget.setListId, score.id);
+    } finally {
+      await _loadSetList();
+      if (mounted) setState(() => _adding.remove(score.id));
+    }
+  }
+
+  /// Add [score] to the set list at [index] (from drag-and-drop).
   Future<void> _insertScoreAt(ScoreModel score, int index) async {
     setState(() => _dragHoverIndex = null);
+    final sl = _setList;
+    if (sl == null) return;
+
+    // Optimistic: append then show it at the target slot immediately.
+    final tempEntry = SetListEntryModel(
+      id: '_tmp_${score.id}',
+      setListId: widget.setListId,
+      scoreId: score.id,
+      orderIndex: index,
+      addedAt: DateTime.now(),
+    );
+    final optimistic = List.of(sl.entries);
+    final clampedIndex = index.clamp(0, optimistic.length);
+    optimistic.insert(clampedIndex, tempEntry);
+    setState(() => _setList = sl.copyWith(entries: optimistic));
+
     await ref
         .read(setListRepositoryProvider)
         .addEntry(widget.setListId, score.id);
     await _loadSetList();
-    final sl = _setList;
-    if (sl == null || sl.entries.isEmpty) return;
-    final entries = List.of(sl.entries);
-    final inserted = entries.removeLast(); // new entry is always appended last
-    final clampedIndex = index.clamp(0, entries.length);
-    entries.insert(clampedIndex, inserted);
-    setState(() => _setList = sl.copyWith(entries: entries));
+    final updated = _setList;
+    if (updated == null || updated.entries.isEmpty) return;
+    final entries = List.of(updated.entries);
+    final inserted = entries.removeLast();
+    final finalIndex = clampedIndex.clamp(0, entries.length);
+    entries.insert(finalIndex, inserted);
+    setState(() => _setList = updated.copyWith(entries: entries));
     await ref.read(setListRepositoryProvider).reorderEntries(
           widget.setListId,
           entries.map((e) => e.id).toList(),
@@ -344,20 +391,31 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
                     subtitle: Text('${score.totalPages} pages'),
                   ),
                 ),
-                child: ListTile(
-                  leading: const Icon(Icons.music_note),
-                  title: Text(score.title),
-                  subtitle: Text('${score.totalPages} pages'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.add_circle_outline),
-                    onPressed: () async {
-                      await ref.read(setListRepositoryProvider).addEntry(
-                            widget.setListId,
-                            score.id,
-                          );
-                      await _loadSetList();
-                    },
-                  ),
+                child: Builder(
+                  builder: (context) {
+                    final inList =
+                        _setList?.entries.any((e) => e.scoreId == score.id) ??
+                            false;
+                    final isPending = _adding.contains(score.id);
+                    return ListTile(
+                      leading: const Icon(Icons.music_note),
+                      title: Text(score.title),
+                      subtitle: Text('${score.totalPages} pages'),
+                      trailing: inList
+                          ? const Icon(Icons.check, color: Colors.green)
+                          : isPending
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : IconButton(
+                                  icon: const Icon(Icons.add_circle_outline),
+                                  onPressed: () => _addScore(score),
+                                ),
+                    );
+                  },
                 ),
               );
             },
