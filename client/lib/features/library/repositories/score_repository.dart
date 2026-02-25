@@ -24,7 +24,7 @@ class ScoreRepository {
 
   static const _scoreColumns = '''
     s.id, s.title, s.filename, s.local_file_path, s.total_pages,
-    s.thumbnail_path, s.folder_id, s.imported_at, s.updated_at
+    s.thumbnail_path, s.updated_at
   ''';
 
   /// Reactive stream of all scores, including their effective tags.
@@ -52,7 +52,7 @@ class ScoreRepository {
           '''
       WITH RECURSIVE subtree(id) AS (
         SELECT id FROM folders WHERE id = ?
-        UNION ALL
+        UNION
         SELECT f.id FROM folders f JOIN subtree p ON f.parent_folder_id = p.id
       )
       SELECT $_scoreColumns, $_tagsSubquery
@@ -79,7 +79,7 @@ class ScoreRepository {
 
   // ─── Write ────────────────────────────────────────────────────────────────
 
-  Future<void> insert(ScoreModel score) async {
+  Future<void> insert(ScoreModel score, {String? folderId}) async {
     await _db.into(_db.scores).insert(
           ScoresCompanion.insert(
             id: score.id,
@@ -88,13 +88,11 @@ class ScoreRepository {
             localFilePath: score.localFilePath,
             totalPages: score.totalPages,
             thumbnailPath: Value(score.thumbnailPath),
-            folderId: Value(score.folderId),
-            importedAt: score.importedAt,
             updatedAt: score.updatedAt,
           ),
         );
-    if (score.folderId != null) {
-      await _addMembership(score.id, score.folderId!);
+    if (folderId != null) {
+      await _addMembership(score.id, folderId);
     }
     await _db.rebuildScoreSearch(score.id, score.title, '');
   }
@@ -141,7 +139,6 @@ class ScoreRepository {
     await (_db.update(_db.scores)..where((s) => s.id.equals(score.id)))
         .write(ScoresCompanion(
       title: Value(score.title),
-      folderId: Value(score.folderId),
       thumbnailPath: Value(score.thumbnailPath),
       updatedAt: Value(DateTime.now()),
     ));
@@ -203,8 +200,6 @@ class ScoreRepository {
         localFilePath: row.localFilePath,
         totalPages: row.totalPages,
         thumbnailPath: row.thumbnailPath,
-        folderId: row.folderId,
-        importedAt: row.importedAt,
         updatedAt: row.updatedAt,
       );
 
@@ -223,9 +218,6 @@ class ScoreRepository {
       localFilePath: row.read<String>('local_file_path'),
       totalPages: row.read<int>('total_pages'),
       thumbnailPath: row.readNullable<String>('thumbnail_path'),
-      folderId: row.readNullable<String>('folder_id'),
-      importedAt:
-          DateTime.fromMillisecondsSinceEpoch(row.read<int>('imported_at')),
       updatedAt:
           DateTime.fromMillisecondsSinceEpoch(row.read<int>('updated_at')),
       effectiveTags: tags,

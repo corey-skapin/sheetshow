@@ -13,8 +13,6 @@ class Scores extends Table {
   TextColumn get localFilePath => text()();
   IntColumn get totalPages => integer()();
   TextColumn get thumbnailPath => text().nullable()();
-  TextColumn get folderId => text().nullable()();
-  DateTimeColumn get importedAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
 
   @override
@@ -128,7 +126,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -204,6 +202,10 @@ class AppDatabase extends _$AppDatabase {
               SELECT id || '-' || folder_id, id, folder_id
               FROM scores WHERE folder_id IS NOT NULL
             ''');
+          }
+          if (from < 4) {
+            await customStatement('ALTER TABLE scores DROP COLUMN folder_id');
+            await customStatement('ALTER TABLE scores DROP COLUMN imported_at');
           }
         },
         beforeOpen: (details) async {

@@ -11,8 +11,6 @@ void main() {
     String localFilePath = '/local/beethoven.pdf',
     int totalPages = 10,
     String? thumbnailPath,
-    String? folderId,
-    DateTime? importedAt,
     DateTime? updatedAt,
   }) =>
       ScoreModel(
@@ -22,8 +20,6 @@ void main() {
         localFilePath: localFilePath,
         totalPages: totalPages,
         thumbnailPath: thumbnailPath,
-        folderId: folderId,
-        importedAt: importedAt ?? now,
         updatedAt: updatedAt ?? now,
       );
 
@@ -38,12 +34,8 @@ void main() {
     });
 
     test('constructs with optional fields', () {
-      final score = makeScore(
-        thumbnailPath: '/thumbnails/beethoven.jpg',
-        folderId: 'folder-1',
-      );
+      final score = makeScore(thumbnailPath: '/thumbnails/beethoven.jpg');
       expect(score.thumbnailPath, '/thumbnails/beethoven.jpg');
-      expect(score.folderId, 'folder-1');
     });
 
     group('copyWith', () {
@@ -62,12 +54,6 @@ void main() {
         final copy = score.copyWith(title: 'Moonlight Sonata');
         expect(copy.title, 'Moonlight Sonata');
         expect(copy.id, score.id);
-      });
-
-      test('copies with new folderId', () {
-        final score = makeScore();
-        final copy = score.copyWith(folderId: 'folder-2');
-        expect(copy.folderId, 'folder-2');
       });
 
       test('copies with thumbnailPath', () {

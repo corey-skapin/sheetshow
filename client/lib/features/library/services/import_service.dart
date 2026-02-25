@@ -235,12 +235,10 @@ class ImportService {
       filename: filename,
       localFilePath: destPath,
       totalPages: totalPages,
-      folderId: folderId,
-      importedAt: now,
       updatedAt: now,
     );
 
-    await scoreRepository.insert(score);
+    await scoreRepository.insert(score, folderId: folderId);
     unawaited(thumbnailService.generateThumbnail(destPath, scoreId));
 
     return score;

@@ -9,8 +9,6 @@ class ScoreModel {
     required this.localFilePath,
     required this.totalPages,
     this.thumbnailPath,
-    this.folderId,
-    required this.importedAt,
     required this.updatedAt,
     this.effectiveTags = const [],
   });
@@ -21,8 +19,6 @@ class ScoreModel {
   final String localFilePath;
   final int totalPages;
   final String? thumbnailPath;
-  final String? folderId;
-  final DateTime importedAt;
   final DateTime updatedAt;
 
   /// Own tags merged with tags inherited from all folders this score belongs to.
@@ -35,8 +31,6 @@ class ScoreModel {
     String? localFilePath,
     int? totalPages,
     String? thumbnailPath,
-    String? folderId,
-    DateTime? importedAt,
     DateTime? updatedAt,
     List<String>? effectiveTags,
   }) =>
@@ -47,8 +41,6 @@ class ScoreModel {
         localFilePath: localFilePath ?? this.localFilePath,
         totalPages: totalPages ?? this.totalPages,
         thumbnailPath: thumbnailPath ?? this.thumbnailPath,
-        folderId: folderId ?? this.folderId,
-        importedAt: importedAt ?? this.importedAt,
         updatedAt: updatedAt ?? this.updatedAt,
         effectiveTags: effectiveTags ?? this.effectiveTags,
       );
