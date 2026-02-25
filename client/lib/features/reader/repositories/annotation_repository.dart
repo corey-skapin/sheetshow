@@ -74,5 +74,5 @@ class AnnotationRepository {
 
 /// Riverpod provider for [AnnotationRepository].
 final annotationRepositoryProvider = Provider<AnnotationRepository>((ref) {
-  return AnnotationRepository(ref.watch(databaseProvider));
+  return AnnotationRepository(ref.watch(databaseProvider).requireValue);
 });

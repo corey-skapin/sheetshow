@@ -28,12 +28,15 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  FolderWatchService buildService({
-    StreamController<FileSystemEvent>? controller,
+  /// Builds a [FolderWatchService] with an injected stream controller and
+  /// an optional page-count override.
+  ///
+  /// [ctrl] is used as the file-system event source; the caller is responsible
+  /// for closing it.
+  FolderWatchService buildService(
+    StreamController<FileSystemEvent> ctrl, {
     PageCountProvider? pageCountProvider,
   }) {
-    final ctrl =
-        controller ?? StreamController<FileSystemEvent>.broadcast();
     return FolderWatchService(
       scoreRepository: scoreRepo,
       folderRepository: folderRepo,
@@ -48,28 +51,29 @@ void main() {
   group('lifecycle', () {
     test('start creates a listener on the stream', () async {
       final ctrl = StreamController<FileSystemEvent>();
-      final service = buildService(controller: ctrl);
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
 
       await service.start(tempDir.path);
       expect(ctrl.hasListener, isTrue);
 
       service.stop();
-      await ctrl.close();
     });
 
     test('stop cancels the subscription', () async {
       final ctrl = StreamController<FileSystemEvent>.broadcast();
-      final service = buildService(controller: ctrl);
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
 
       await service.start(tempDir.path);
       service.stop();
       expect(ctrl.hasListener, isFalse);
-
-      await ctrl.close();
     });
 
-    test('calling stop before start does not throw', () {
-      final service = buildService();
+    test('calling stop before start does not throw', () async {
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
       expect(() => service.stop(), returnsNormally);
     });
   });
@@ -78,27 +82,35 @@ void main() {
 
   group('suppression', () {
     test('suppress marks path as suppressed', () {
-      final service = buildService();
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
       service.suppress('/music/score.pdf');
       expect(service.isSuppressed('/music/score.pdf'), isTrue);
     });
 
     test('unsuppress clears suppression', () {
-      final service = buildService();
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
       service.suppress('/music/score.pdf');
       service.unsuppress('/music/score.pdf');
       expect(service.isSuppressed('/music/score.pdf'), isFalse);
     });
 
     test('suppression is case-insensitive', () {
-      final service = buildService();
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
       service.suppress('/Music/Score.PDF');
       expect(service.isSuppressed('/music/score.pdf'), isTrue);
     });
 
     test('suppressed PDF create event is skipped', () async {
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/score.pdf';
-      final service = buildService();
+      final service = buildService(ctrl);
       service.suppress(pdfPath);
 
       await service.handleEventForTesting(
@@ -111,8 +123,10 @@ void main() {
     });
 
     test('unsuppressed path is processed normally', () async {
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/bach.pdf';
-      final service = buildService(pageCountProvider: (_) async => 3);
+      final service = buildService(ctrl, pageCountProvider: (_) async => 3);
       service.suppress(pdfPath);
       service.unsuppress(pdfPath);
 
@@ -130,8 +144,10 @@ void main() {
 
   group('PDF create event', () {
     test('inserts a new score into the database', () async {
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/beethoven.pdf';
-      final service = buildService(pageCountProvider: (_) async => 5);
+      final service = buildService(ctrl, pageCountProvider: (_) async => 5);
 
       await service.handleEventForTesting(
         eventPath: pdfPath,
@@ -147,7 +163,9 @@ void main() {
     });
 
     test('skips non-PDF files', () async {
-      final service = buildService();
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
 
       await service.handleEventForTesting(
         eventPath: '${tempDir.path}/readme.txt',
@@ -160,9 +178,11 @@ void main() {
     });
 
     test('skips PDF when pageCountProvider returns null', () async {
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/invalid.pdf';
       final service =
-          buildService(pageCountProvider: (_) async => null);
+          buildService(ctrl, pageCountProvider: (_) async => null);
 
       await service.handleEventForTesting(
         eventPath: pdfPath,
@@ -184,7 +204,10 @@ void main() {
         filename: 'chopin.pdf',
       ));
 
-      final service = buildService();
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
+
       await service.handleEventForTesting(
         eventPath: pdfPath,
         isDirectory: false,
@@ -195,7 +218,9 @@ void main() {
     });
 
     test('does nothing when score does not exist', () async {
-      final service = buildService();
+      final ctrl = StreamController<FileSystemEvent>();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
 
       await expectLater(
         service.handleEventForTesting(
