@@ -64,7 +64,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
   /// Width of the search panel; dragged by the resize handle.
   double _searchPanelWidth = 320;
   static const double _searchPanelMinWidth = 180;
-  static const double _searchPanelMaxWidth = 600;
+  static const double _searchPanelMaxWidth = 1200;
 
   // ─── Init ─────────────────────────────────────────────────────────────────
 
@@ -334,27 +334,39 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
           const SizedBox(width: AppSpacing.sm),
         ],
       ),
-      body: Row(
-        children: [
-          Expanded(child: _buildEntryList()),
-          MouseRegion(
-            cursor: SystemMouseCursors.resizeColumn,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onHorizontalDragUpdate: (d) => setState(() {
-                _searchPanelWidth = (_searchPanelWidth - d.delta.dx).clamp(
-                  _searchPanelMinWidth,
-                  _searchPanelMaxWidth,
-                );
-              }),
-              child: const SizedBox(
-                width: 6,
-                child: VerticalDivider(width: 6),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxSearch = (constraints.maxWidth - 200).clamp(
+            _searchPanelMinWidth,
+            _searchPanelMaxWidth,
+          );
+          final clampedWidth = _searchPanelWidth.clamp(
+            _searchPanelMinWidth,
+            maxSearch,
+          );
+          return Row(
+            children: [
+              Expanded(child: _buildEntryList()),
+              MouseRegion(
+                cursor: SystemMouseCursors.resizeColumn,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: (d) => setState(() {
+                    _searchPanelWidth = (_searchPanelWidth - d.delta.dx).clamp(
+                      _searchPanelMinWidth,
+                      maxSearch,
+                    );
+                  }),
+                  child: const SizedBox(
+                    width: 6,
+                    child: VerticalDivider(width: 6),
+                  ),
+                ),
               ),
-            ),
-          ),
-          SizedBox(width: _searchPanelWidth, child: _buildSearchPanel()),
-        ],
+              SizedBox(width: clampedWidth, child: _buildSearchPanel()),
+            ],
+          );
+        },
       ),
     );
   }
