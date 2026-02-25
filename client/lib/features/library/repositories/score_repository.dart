@@ -11,25 +11,62 @@ class ScoreRepository {
 
   // ─── Watch ────────────────────────────────────────────────────────────────
 
-  /// Reactive stream of all scores.
-  /// When [folderId] is set, returns only scores that have a membership in that folder.
+  // Subquery that returns |-separated effective tags for a score row aliased 's'.
+  static const _tagsSubquery = '''
+    (SELECT GROUP_CONCAT(tag, '|') FROM (
+      SELECT tag FROM score_tags WHERE score_id = s.id
+      UNION
+      SELECT ft.tag FROM folder_tags ft
+      JOIN score_folder_memberships mem ON mem.folder_id = ft.folder_id
+      WHERE mem.score_id = s.id
+    )) AS tags_flat
+  ''';
+
+  static const _scoreColumns = '''
+    s.id, s.title, s.filename, s.local_file_path, s.total_pages,
+    s.thumbnail_path, s.folder_id, s.imported_at, s.updated_at
+  ''';
+
+  /// Reactive stream of all scores, including their effective tags.
+  /// When [folderId] is set, returns scores in that folder AND all its
+  /// descendant subfolders (recursive).
   Stream<List<ScoreModel>> watchAll({String? folderId}) {
+    final Set<ResultSetImplementation<dynamic, dynamic>> tables = {
+      _db.scores,
+      _db.scoreTags,
+      _db.folderTags,
+      _db.scoreFolderMemberships,
+      _db.folders,
+    };
     if (folderId == null) {
-      final query = _db.select(_db.scores)
-        ..orderBy([(s) => OrderingTerm.asc(s.title)]);
-      return query.watch().map((rows) => rows.map(_mapRow).toList());
+      return _db
+          .customSelect(
+            'SELECT $_scoreColumns, $_tagsSubquery FROM scores s ORDER BY s.title ASC',
+            readsFrom: tables,
+          )
+          .watch()
+          .map((rows) => rows.map(_mapSqlRow).toList());
     }
-    final query = _db.select(_db.scores).join([
-      innerJoin(
-        _db.scoreFolderMemberships,
-        _db.scoreFolderMemberships.scoreId.equalsExp(_db.scores.id),
-      ),
-    ])
-      ..where(_db.scoreFolderMemberships.folderId.equals(folderId))
-      ..orderBy([OrderingTerm.asc(_db.scores.title)]);
-    return query.watch().map(
-          (rows) => rows.map((r) => _mapRow(r.readTable(_db.scores))).toList(),
-        );
+    return _db
+        .customSelect(
+          '''
+      WITH RECURSIVE subtree(id) AS (
+        SELECT id FROM folders WHERE id = ?
+        UNION ALL
+        SELECT f.id FROM folders f JOIN subtree p ON f.parent_folder_id = p.id
+      )
+      SELECT $_scoreColumns, $_tagsSubquery
+      FROM scores s
+      JOIN score_folder_memberships m ON m.score_id = s.id
+      JOIN subtree p ON p.id = m.folder_id
+      GROUP BY s.id
+      ORDER BY s.title ASC
+      ''',
+          variables: [Variable.withString(folderId)],
+          readsFrom: tables,
+        )
+        .watch()
+        .map((rows) => rows.map(_mapSqlRow).toList());
   }
 
   // ─── Read ─────────────────────────────────────────────────────────────────
@@ -170,6 +207,30 @@ class ScoreRepository {
         importedAt: row.importedAt,
         updatedAt: row.updatedAt,
       );
+
+  /// Maps a raw SQL QueryRow (from customSelect) to [ScoreModel].
+  /// Dates are stored as Unix milliseconds (Drift default).
+  ScoreModel _mapSqlRow(QueryRow row) {
+    final tagsFlat = row.readNullable<String>('tags_flat');
+    final tags = (tagsFlat == null || tagsFlat.isEmpty)
+        ? <String>[]
+        : tagsFlat.split('|')
+      ..sort();
+    return ScoreModel(
+      id: row.read<String>('id'),
+      title: row.read<String>('title'),
+      filename: row.read<String>('filename'),
+      localFilePath: row.read<String>('local_file_path'),
+      totalPages: row.read<int>('total_pages'),
+      thumbnailPath: row.readNullable<String>('thumbnail_path'),
+      folderId: row.readNullable<String>('folder_id'),
+      importedAt:
+          DateTime.fromMillisecondsSinceEpoch(row.read<int>('imported_at')),
+      updatedAt:
+          DateTime.fromMillisecondsSinceEpoch(row.read<int>('updated_at')),
+      effectiveTags: tags,
+    );
+  }
 }
 
 /// Riverpod provider for [ScoreRepository].

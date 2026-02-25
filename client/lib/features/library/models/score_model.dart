@@ -12,6 +12,7 @@ class ScoreModel {
     this.folderId,
     required this.importedAt,
     required this.updatedAt,
+    this.effectiveTags = const [],
   });
 
   final String id;
@@ -24,6 +25,9 @@ class ScoreModel {
   final DateTime importedAt;
   final DateTime updatedAt;
 
+  /// Own tags merged with tags inherited from all folders this score belongs to.
+  final List<String> effectiveTags;
+
   ScoreModel copyWith({
     String? id,
     String? title,
@@ -34,6 +38,7 @@ class ScoreModel {
     String? folderId,
     DateTime? importedAt,
     DateTime? updatedAt,
+    List<String>? effectiveTags,
   }) =>
       ScoreModel(
         id: id ?? this.id,
@@ -45,6 +50,7 @@ class ScoreModel {
         folderId: folderId ?? this.folderId,
         importedAt: importedAt ?? this.importedAt,
         updatedAt: updatedAt ?? this.updatedAt,
+        effectiveTags: effectiveTags ?? this.effectiveTags,
       );
 
   @override

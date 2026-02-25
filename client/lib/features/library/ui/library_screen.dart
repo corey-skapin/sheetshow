@@ -303,6 +303,7 @@ class _ScoreGrid extends StatelessWidget {
           child: ScoreCard(
             score: score,
             isSelected: isSelected,
+            tags: score.effectiveTags,
             onTap: () {
               // Ctrl+click, or click while any item is selected → toggle
               if (selectedIds.isNotEmpty ||

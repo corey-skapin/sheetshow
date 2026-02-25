@@ -38,7 +38,10 @@ class SearchService {
     final scores = <ScoreModel>[];
     for (final id in ids) {
       final score = await _scoreRepository.getById(id);
-      if (score != null) scores.add(score);
+      if (score != null) {
+        final tags = await _scoreRepository.getEffectiveTags(id);
+        scores.add(score.copyWith(effectiveTags: tags));
+      }
     }
     yield scores;
   }
