@@ -82,7 +82,6 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
   /// Append a score. Generates a real UUID immediately so reorders can
   /// reference it before the DB write completes.
   Future<void> _addScore(ScoreModel score) async {
-    if (_entries.any((e) => e.scoreId == score.id)) return;
     final entryId = const Uuid().v4();
     final newEntry = SetListEntryModel(
       id: entryId,
@@ -136,10 +135,6 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
 
   /// Insert a dragged score at [index]; uses real UUID immediately.
   Future<void> _insertScoreAt(ScoreModel score, int index) async {
-    if (_entries.any((e) => e.scoreId == score.id)) {
-      setState(() => _dragHoverIndex = null);
-      return;
-    }
     final entryId = const Uuid().v4();
     final clampedIndex = index.clamp(0, _entries.length);
     final newEntry = SetListEntryModel(
@@ -377,7 +372,6 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
             itemCount: _searchResults.length,
             itemBuilder: (_, i) {
               final score = _searchResults[i];
-              final inList = _entries.any((e) => e.scoreId == score.id);
               return Draggable<ScoreModel>(
                 data: score,
                 onDragStarted: () =>
@@ -412,12 +406,10 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
                   leading: const Icon(Icons.music_note),
                   title: Text(score.title),
                   subtitle: Text('${score.totalPages} pages'),
-                  trailing: inList
-                      ? const Icon(Icons.check, color: Colors.green)
-                      : IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
-                          onPressed: () => _addScore(score),
-                        ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: () => _addScore(score),
+                  ),
                 ),
               );
             },
