@@ -91,6 +91,16 @@ class SetListRepository {
     List<String> orderedEntryIds,
   ) async {
     await _db.transaction(() async {
+      // Phase 1: shift all indices to a high range to clear UNIQUE constraint
+      // conflicts that would otherwise occur during in-place updates.
+      for (var i = 0; i < orderedEntryIds.length; i++) {
+        await (_db.update(_db.setListEntries)
+              ..where((e) => e.id.equals(orderedEntryIds[i])))
+            .write(SetListEntriesCompanion(
+          orderIndex: Value(i + 100000),
+        ));
+      }
+      // Phase 2: apply the correct final indices.
       for (var i = 0; i < orderedEntryIds.length; i++) {
         await (_db.update(_db.setListEntries)
               ..where((e) => e.id.equals(orderedEntryIds[i])))

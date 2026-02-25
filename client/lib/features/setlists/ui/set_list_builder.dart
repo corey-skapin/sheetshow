@@ -91,6 +91,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
 
     return ReorderableListView.builder(
       padding: const EdgeInsets.all(AppSpacing.sm),
+      buildDefaultDragHandles: false,
       itemCount: sl.entries.length,
       onReorder: (oldIndex, newIndex) async {
         final entries = List.of(sl.entries);
@@ -105,19 +106,40 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
       },
       itemBuilder: (_, i) {
         final entry = sl.entries[i];
-        return FutureBuilder<ScoreModel?>(
+        return ReorderableDelayedDragStartListener(
           key: ValueKey(entry.id),
-          future: ref.read(scoreRepositoryProvider).getById(entry.scoreId),
-          builder: (_, snapshot) {
-            final score = snapshot.data;
-            // T062: Handle orphaned entry (score not found)
-            if (snapshot.connectionState == ConnectionState.done &&
-                score == null) {
+          index: i,
+          child: FutureBuilder<ScoreModel?>(
+            future: ref.read(scoreRepositoryProvider).getById(entry.scoreId),
+            builder: (_, snapshot) {
+              final score = snapshot.data;
+              // T062: Handle orphaned entry (score not found)
+              if (snapshot.connectionState == ConnectionState.done &&
+                  score == null) {
+                return ListTile(
+                  leading:
+                      const Icon(Icons.warning_amber, color: Colors.orange),
+                  title: const Text('Score not found — removed from library'),
+                  subtitle: const Text('Tap × to remove from set list'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () async {
+                      await ref
+                          .read(setListRepositoryProvider)
+                          .removeEntry(entry.id);
+                      await _loadSetList();
+                    },
+                  ),
+                );
+              }
+
               return ListTile(
-                key: ValueKey(entry.id),
-                leading: const Icon(Icons.warning_amber, color: Colors.orange),
-                title: const Text('Score not found — removed from library'),
-                subtitle: const Text('Tap × to remove from set list'),
+                leading: Text(
+                  '${i + 1}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                title: Text(score?.title ?? '…'),
+                subtitle: Text('${score?.totalPages ?? 0} pages'),
                 trailing: IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () async {
@@ -128,33 +150,8 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
                   },
                 ),
               );
-            }
-
-            return ListTile(
-              key: ValueKey(entry.id),
-              leading: Text(
-                '${i + 1}',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              title: Text(score?.title ?? '…'),
-              subtitle: Text('${score?.totalPages ?? 0} pages'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.drag_handle),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () async {
-                      await ref
-                          .read(setListRepositoryProvider)
-                          .removeEntry(entry.id);
-                      await _loadSetList();
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
+            },
+          ),
         );
       },
     );
