@@ -7,21 +7,33 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/services/error_display_service.dart';
+import 'package:sheetshow/features/library/models/folder_model.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/folder_repository.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 import 'package:sheetshow/features/library/services/thumbnail_service.dart';
 
 // T036: ImportService — picks PDFs or a folder, copies locally, registers in DB, triggers thumbnail.
 
+/// A simple cancellation token. Call [cancel] to request cancellation;
+/// check [isCancelled] inside loops.
+class CancellationToken {
+  bool _cancelled = false;
+  bool get isCancelled => _cancelled;
+  void cancel() => _cancelled = true;
+}
+
 /// Handles PDF import from the file system into the SheetShow library.
 class ImportService {
   ImportService({
     required this.scoreRepository,
+    required this.folderRepository,
     required this.thumbnailService,
     required this.clockService,
   });
 
   final ScoreRepository scoreRepository;
+  final FolderRepository folderRepository;
   final ThumbnailService thumbnailService;
   final ClockService clockService;
 
@@ -29,10 +41,11 @@ class ImportService {
   /// each selected PDF.
   ///
   /// [onProgress] is called after each successful import with (done, total).
-  /// Returns the list of successfully imported scores.
+  /// [cancelToken] can be used to stop after the current file finishes.
   Future<List<ScoreModel>> importFiles({
     String? folderId,
     void Function(int done, int total)? onProgress,
+    CancellationToken? cancelToken,
   }) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -42,17 +55,24 @@ class ImportService {
     if (result == null || result.files.isEmpty) return [];
 
     final paths = result.files.map((f) => f.path).whereType<String>().toList();
-    return _importPaths(paths, folderId: folderId, onProgress: onProgress);
+    return _importPaths(
+      paths,
+      folderId: folderId,
+      onProgress: onProgress,
+      cancelToken: cancelToken,
+    );
   }
 
-  /// Open a directory picker and import all PDF files found within it
-  /// (non-recursive by default, recursive if the folder contains sub-folders).
+  /// Open a directory picker. Creates a new app folder named after the chosen
+  /// directory (nested under [parentFolderId] if provided), then imports all
+  /// PDF files found inside into that new folder.
   ///
   /// [onProgress] is called after each successful import with (done, total).
-  /// Returns the list of successfully imported scores.
+  /// [cancelToken] can be used to stop after the current file finishes.
   Future<List<ScoreModel>> importFolder({
-    String? folderId,
+    String? parentFolderId,
     void Function(int done, int total)? onProgress,
+    CancellationToken? cancelToken,
   }) async {
     final dirPath = await FilePicker.platform.getDirectoryPath();
     if (dirPath == null) return [];
@@ -66,10 +86,23 @@ class ImportService {
 
     if (pdfFiles.isEmpty) return [];
 
+    // Create a new app folder named after the chosen directory.
+    final folderName = path.basename(dirPath);
+    final now = clockService.now();
+    final newFolder = FolderModel(
+      id: const Uuid().v4(),
+      name: folderName,
+      parentFolderId: parentFolderId,
+      createdAt: now,
+      updatedAt: now,
+    );
+    await folderRepository.create(newFolder);
+
     return _importPaths(
       pdfFiles.map((f) => f.path).toList(),
-      folderId: folderId,
+      folderId: newFolder.id,
       onProgress: onProgress,
+      cancelToken: cancelToken,
     );
   }
 
@@ -79,10 +112,12 @@ class ImportService {
     List<String> paths, {
     String? folderId,
     void Function(int done, int total)? onProgress,
+    CancellationToken? cancelToken,
   }) async {
     final results = <ScoreModel>[];
     final total = paths.length;
     for (final sourcePath in paths) {
+      if (cancelToken?.isCancelled == true) break;
       try {
         final score = await _importSingleFile(sourcePath, folderId: folderId);
         if (score != null) {
@@ -150,11 +185,8 @@ class ImportService {
 
   Future<void> _checkFreeDiskSpace(File sourceFile) async {
     final appDir = await getApplicationDocumentsDirectory();
-    // Get available space on the drive containing app documents
-    // On Windows, use StatefulFile stats. Fallback: skip check.
     try {
       final _ = appDir.statSync();
-      // Check is approximate — if can't determine, allow import
     } catch (_) {
       // Skip space check if unable to determine
     }
@@ -170,6 +202,7 @@ void unawaited(Future<void> future) {
 final importServiceProvider = Provider<ImportService>((ref) {
   return ImportService(
     scoreRepository: ref.watch(scoreRepositoryProvider),
+    folderRepository: ref.watch(folderRepositoryProvider),
     thumbnailService: ref.watch(thumbnailServiceProvider),
     clockService: ref.watch(clockServiceProvider),
   );

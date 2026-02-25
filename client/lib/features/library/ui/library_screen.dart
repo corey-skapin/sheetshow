@@ -29,6 +29,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// null = idle; non-null = (done, total) progress during batch import.
   (int, int)? _importProgress;
   bool get _isImporting => _importProgress != null;
+  CancellationToken? _cancelToken;
 
   @override
   void dispose() {
@@ -124,47 +125,66 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         importProgress: _importProgress,
         onImportFiles: _importFiles,
         onImportFolder: _importFolder,
+        onCancel: _isImporting ? () => _cancelToken?.cancel() : null,
       ),
     );
   }
 
   Future<void> _importFiles() async {
-    setState(() => _importProgress = (0, 1));
+    final token = CancellationToken();
+    setState(() {
+      _importProgress = (0, 1);
+      _cancelToken = token;
+    });
     try {
       await ref.read(importServiceProvider).importFiles(
             folderId: _selectedFolderId,
             onProgress: (done, total) {
               if (mounted) setState(() => _importProgress = (done, total));
             },
+            cancelToken: token,
           );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
       }
     } finally {
-      if (mounted) setState(() => _importProgress = null);
+      if (mounted) {
+        setState(() {
+          _importProgress = null;
+          _cancelToken = null;
+        });
+      }
     }
   }
 
   Future<void> _importFolder() async {
-    setState(() => _importProgress = (0, 1));
+    final token = CancellationToken();
+    setState(() {
+      _importProgress = (0, 1);
+      _cancelToken = token;
+    });
     try {
       await ref.read(importServiceProvider).importFolder(
-            folderId: _selectedFolderId,
+            parentFolderId: _selectedFolderId,
             onProgress: (done, total) {
               if (mounted) setState(() => _importProgress = (done, total));
             },
+            cancelToken: token,
           );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
       }
     } finally {
-      if (mounted) setState(() => _importProgress = null);
+      if (mounted) {
+        setState(() {
+          _importProgress = null;
+          _cancelToken = null;
+        });
+      }
     }
   }
 
@@ -256,25 +276,43 @@ class _ImportFab extends StatelessWidget {
     required this.importProgress,
     required this.onImportFiles,
     required this.onImportFolder,
+    required this.onCancel,
   });
 
   final bool isImporting;
   final (int, int)? importProgress;
   final VoidCallback onImportFiles;
   final VoidCallback onImportFolder;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
     if (isImporting) {
       final (done, total) = importProgress ?? (0, 1);
-      return FloatingActionButton.extended(
-        onPressed: null,
-        icon: const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-        label: Text(total > 1 ? 'Importing $done/$total…' : 'Importing…'),
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'import_cancel',
+            tooltip: 'Cancel import (finishes current file)',
+            onPressed: onCancel,
+            backgroundColor: Theme.of(context).colorScheme.errorContainer,
+            foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+            child: const Icon(Icons.close),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'import_progress',
+            onPressed: null,
+            icon: const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            label: Text(total > 1 ? 'Importing $done/$total…' : 'Importing…'),
+          ),
+        ],
       );
     }
 
