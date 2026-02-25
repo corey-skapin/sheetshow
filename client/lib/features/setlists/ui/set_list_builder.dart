@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/services/search_service.dart';
 import 'package:sheetshow/features/setlists/models/set_list_entry_model.dart';
-import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
 import 'package:sheetshow/features/setlists/ui/performance_mode_screen.dart';
 
@@ -22,12 +22,22 @@ class SetListBuilderScreen extends ConsumerStatefulWidget {
 }
 
 class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
-  SetListModel? _setList;
+  // ─── State ────────────────────────────────────────────────────────────────
+
+  String _setListName = '';
+
+  /// Authoritative UI entry list. Never replaced while writes are pending.
+  List<SetListEntryModel> _entries = [];
+
   List<ScoreModel> _searchResults = [];
   Map<String, ScoreModel> _scoreCache = {};
   int? _dragHoverIndex;
   bool _isDraggingFromSearch = false;
-  final Set<String> _adding = {}; // scoreIds currently being added
+
+  /// Number of in-flight DB writes. While > 0, _loadSetList() is a no-op.
+  int _pendingWrites = 0;
+
+  // ─── Init ─────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -47,12 +57,20 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
     }
   }
 
+  /// Syncs from DB only when no writes are pending (avoids clobbering optimistic state).
   Future<void> _loadSetList() async {
+    if (_pendingWrites > 0) return;
     final sl = await ref
         .read(setListRepositoryProvider)
         .getWithEntries(widget.setListId);
-    if (mounted) setState(() => _setList = sl);
+    if (!mounted || _pendingWrites > 0) return;
+    setState(() {
+      _setListName = sl?.name ?? '';
+      _entries = sl?.entries ?? [];
+    });
   }
+
+  // ─── Mutations (optimistic-first, persist in background) ──────────────────
 
   void _startPerformanceFrom(int index) {
     ref.read(performancePositionProvider.notifier).update(
@@ -61,83 +79,104 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
     context.go('/setlists/${widget.setListId}/performance');
   }
 
-  /// Add [score] via + button: optimistic update + guard against double-tap.
+  /// Append a score. Generates a real UUID immediately so reorders can
+  /// reference it before the DB write completes.
   Future<void> _addScore(ScoreModel score) async {
-    if (_adding.contains(score.id)) return;
-    final sl = _setList;
-    if (sl == null) return;
-
-    // Optimistic: immediately append a temp entry so the UI responds instantly.
-    final tempEntry = SetListEntryModel(
-      id: '_tmp_${score.id}',
+    if (_entries.any((e) => e.scoreId == score.id)) return;
+    final entryId = const Uuid().v4();
+    final newEntry = SetListEntryModel(
+      id: entryId,
       setListId: widget.setListId,
       scoreId: score.id,
-      orderIndex: sl.entries.length,
+      orderIndex: _entries.length,
       addedAt: DateTime.now(),
     );
-    setState(() {
-      _adding.add(score.id);
-      _setList = sl.copyWith(entries: [...sl.entries, tempEntry]);
-    });
-
+    setState(() => _entries = [..._entries, newEntry]);
+    _pendingWrites++;
     try {
       await ref
           .read(setListRepositoryProvider)
-          .addEntry(widget.setListId, score.id);
+          .addEntry(widget.setListId, score.id, id: entryId);
     } finally {
-      await _loadSetList();
-      if (mounted) setState(() => _adding.remove(score.id));
+      _pendingWrites--;
+      if (_pendingWrites == 0 && mounted) await _loadSetList();
     }
   }
 
-  /// Add [score] to the set list at [index] (from drag-and-drop).
-  Future<void> _insertScoreAt(ScoreModel score, int index) async {
-    setState(() => _dragHoverIndex = null);
-    final sl = _setList;
-    if (sl == null) return;
+  /// Reorder. Operates on `_entries` immediately; persists in background.
+  Future<void> _reorder(int oldIndex, int newIndex) async {
+    if (newIndex > oldIndex) newIndex--;
+    final entries = List.of(_entries);
+    final entry = entries.removeAt(oldIndex);
+    entries.insert(newIndex, entry);
+    setState(() => _entries = entries);
+    _pendingWrites++;
+    try {
+      await ref.read(setListRepositoryProvider).reorderEntries(
+            widget.setListId,
+            entries.map((e) => e.id).toList(),
+          );
+    } finally {
+      _pendingWrites--;
+      if (_pendingWrites == 0 && mounted) await _loadSetList();
+    }
+  }
 
-    // Optimistic: append then show it at the target slot immediately.
-    final tempEntry = SetListEntryModel(
-      id: '_tmp_${score.id}',
+  /// Remove an entry immediately; persists in background.
+  Future<void> _removeEntry(String entryId) async {
+    setState(() => _entries = _entries.where((e) => e.id != entryId).toList());
+    _pendingWrites++;
+    try {
+      await ref.read(setListRepositoryProvider).removeEntry(entryId);
+    } finally {
+      _pendingWrites--;
+      if (_pendingWrites == 0 && mounted) await _loadSetList();
+    }
+  }
+
+  /// Insert a dragged score at [index]; uses real UUID immediately.
+  Future<void> _insertScoreAt(ScoreModel score, int index) async {
+    if (_entries.any((e) => e.scoreId == score.id)) {
+      setState(() => _dragHoverIndex = null);
+      return;
+    }
+    final entryId = const Uuid().v4();
+    final clampedIndex = index.clamp(0, _entries.length);
+    final newEntry = SetListEntryModel(
+      id: entryId,
       setListId: widget.setListId,
       scoreId: score.id,
-      orderIndex: index,
+      orderIndex: clampedIndex,
       addedAt: DateTime.now(),
     );
-    final optimistic = List.of(sl.entries);
-    final clampedIndex = index.clamp(0, optimistic.length);
-    optimistic.insert(clampedIndex, tempEntry);
-    setState(() => _setList = sl.copyWith(entries: optimistic));
-
-    await ref
-        .read(setListRepositoryProvider)
-        .addEntry(widget.setListId, score.id);
-    await _loadSetList();
-    final updated = _setList;
-    if (updated == null || updated.entries.isEmpty) return;
-    final entries = List.of(updated.entries);
-    final inserted = entries.removeLast();
-    final finalIndex = clampedIndex.clamp(0, entries.length);
-    entries.insert(finalIndex, inserted);
-    setState(() => _setList = updated.copyWith(entries: entries));
-    await ref.read(setListRepositoryProvider).reorderEntries(
-          widget.setListId,
-          entries.map((e) => e.id).toList(),
-        );
-    await _loadSetList();
+    final entries = List.of(_entries)..insert(clampedIndex, newEntry);
+    setState(() {
+      _entries = entries;
+      _dragHoverIndex = null;
+    });
+    _pendingWrites++;
+    try {
+      await ref
+          .read(setListRepositoryProvider)
+          .addEntry(widget.setListId, score.id, id: entryId);
+      await ref.read(setListRepositoryProvider).reorderEntries(
+            widget.setListId,
+            entries.map((e) => e.id).toList(),
+          );
+    } finally {
+      _pendingWrites--;
+      if (_pendingWrites == 0 && mounted) await _loadSetList();
+    }
   }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final sl = _setList;
-    if (sl == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: () => context.go('/setlists')),
-        title: Text(sl.name),
+        title: Text(_setListName.isEmpty ? '…' : _setListName),
         actions: [
           ElevatedButton.icon(
             onPressed: () =>
@@ -150,33 +189,26 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
       ),
       body: Row(
         children: [
-          // Reorderable list of entries
-          Expanded(
-            flex: 2,
-            child: _buildEntryList(sl),
-          ),
+          Expanded(flex: 2, child: _buildEntryList()),
           const VerticalDivider(width: 1),
-          // Score search panel
-          Expanded(
-            child: _buildSearchPanel(),
-          ),
+          Expanded(child: _buildSearchPanel()),
         ],
       ),
     );
   }
 
-  Widget _buildEntryList(SetListModel sl) {
+  // ─── Entry list ──────────────────────────────────────────────────────────
+
+  Widget _buildEntryList() {
     final theme = Theme.of(context);
     final accentColor = theme.colorScheme.primary;
 
-    // Insertion indicator shown between/around items while dragging.
     Widget insertionLine() => Container(
           height: 2,
           margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           color: accentColor,
         );
 
-    // Drop zone that shows an insertion line when a score hovers over it.
     Widget dropZone(int insertAt) => DragTarget<ScoreModel>(
           onWillAcceptWithDetails: (_) => true,
           onMove: (_) => setState(() => _dragHoverIndex = insertAt),
@@ -194,64 +226,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
           ),
         );
 
-    Widget buildItem(int i) {
-      final entry = sl.entries[i];
-      final score = _scoreCache[entry.scoreId];
-
-      // T062: Handle orphaned entry (score not found in cache).
-      if (_scoreCache.isNotEmpty && score == null) {
-        return ReorderableDragStartListener(
-          key: ValueKey(entry.id),
-          index: i,
-          child: ListTile(
-            leading: const Icon(Icons.warning_amber, color: Colors.orange),
-            title: const Text('Score not found — removed from library'),
-            subtitle: const Text('Tap × to remove from set list'),
-            trailing: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () async {
-                await ref.read(setListRepositoryProvider).removeEntry(entry.id);
-                await _loadSetList();
-              },
-            ),
-          ),
-        );
-      }
-
-      return ReorderableDragStartListener(
-        key: ValueKey(entry.id),
-        index: i,
-        child: ListTile(
-          leading: Text(
-            '${i + 1}',
-            style: theme.textTheme.titleMedium,
-          ),
-          title: Text(score?.title ?? '…'),
-          subtitle: Text('${score?.totalPages ?? 0} pages'),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.play_arrow),
-                tooltip: 'Start performance from here',
-                onPressed: () => _startPerformanceFrom(i),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () async {
-                  await ref
-                      .read(setListRepositoryProvider)
-                      .removeEntry(entry.id);
-                  await _loadSetList();
-                },
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (sl.entries.isEmpty) {
+    if (_entries.isEmpty) {
       return DragTarget<ScoreModel>(
         onWillAcceptWithDetails: (_) => true,
         onAcceptWithDetails: (d) => _insertScoreAt(d.data, 0),
@@ -277,46 +252,85 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
             padding: const EdgeInsets.fromLTRB(
                 AppSpacing.sm, AppSpacing.sm, AppSpacing.sm, 0),
             buildDefaultDragHandles: false,
-            itemCount: sl.entries.length,
-            onReorder: (oldIndex, newIndex) async {
-              final entries = List.of(sl.entries);
-              if (newIndex > oldIndex) newIndex--;
-              final entry = entries.removeAt(oldIndex);
-              entries.insert(newIndex, entry);
-              setState(() => _setList = sl.copyWith(entries: entries));
-              await ref.read(setListRepositoryProvider).reorderEntries(
-                    widget.setListId,
-                    entries.map((e) => e.id).toList(),
-                  );
-              await _loadSetList();
-            },
+            itemCount: _entries.length,
+            onReorder: _reorder,
             itemBuilder: (_, i) {
-              return Column(
-                key: ValueKey(sl.entries[i].id),
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  dropZone(i),
-                  buildItem(i),
-                ],
+              final entry = _entries[i];
+              final score = _scoreCache[entry.scoreId];
+
+              // T062: Orphaned entry.
+              if (_scoreCache.isNotEmpty && score == null) {
+                return ReorderableDragStartListener(
+                  key: ValueKey(entry.id),
+                  index: i,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      dropZone(i),
+                      ListTile(
+                        leading: const Icon(Icons.warning_amber,
+                            color: Colors.orange),
+                        title: const Text(
+                            'Score not found — removed from library'),
+                        subtitle: const Text('Tap × to remove from set list'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => _removeEntry(entry.id),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ReorderableDragStartListener(
+                key: ValueKey(entry.id),
+                index: i,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    dropZone(i),
+                    ListTile(
+                      leading: Text(
+                        '${i + 1}',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      title: Text(score?.title ?? '…'),
+                      subtitle: Text('${score?.totalPages ?? 0} pages'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.play_arrow),
+                            tooltip: 'Start performance from here',
+                            onPressed: () => _startPerformanceFrom(i),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => _removeEntry(entry.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           ),
         ),
-        // Append-to-end drop zone — always rendered but only visible while dragging.
         if (_isDraggingFromSearch)
           DragTarget<ScoreModel>(
             onWillAcceptWithDetails: (_) => true,
-            onMove: (_) => setState(() => _dragHoverIndex = sl.entries.length),
+            onMove: (_) => setState(() => _dragHoverIndex = _entries.length),
             onLeave: (_) => setState(() => _dragHoverIndex = null),
-            onAcceptWithDetails: (d) =>
-                _insertScoreAt(d.data, sl.entries.length),
+            onAcceptWithDetails: (d) => _insertScoreAt(d.data, _entries.length),
             builder: (_, candidates, __) => AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               height: 48,
               margin: const EdgeInsets.all(AppSpacing.sm),
               decoration: BoxDecoration(
                 color: (candidates.isNotEmpty ||
-                        _dragHoverIndex == sl.entries.length)
+                        _dragHoverIndex == _entries.length)
                     ? accentColor.withAlpha(30)
                     : Colors.transparent,
                 border: Border.all(
@@ -337,6 +351,8 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
       ],
     );
   }
+
+  // ─── Search panel ────────────────────────────────────────────────────────
 
   Widget _buildSearchPanel() {
     return Column(
@@ -361,6 +377,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
             itemCount: _searchResults.length,
             itemBuilder: (_, i) {
               final score = _searchResults[i];
+              final inList = _entries.any((e) => e.scoreId == score.id);
               return Draggable<ScoreModel>(
                 data: score,
                 onDragStarted: () =>
@@ -391,31 +408,16 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
                     subtitle: Text('${score.totalPages} pages'),
                   ),
                 ),
-                child: Builder(
-                  builder: (context) {
-                    final inList =
-                        _setList?.entries.any((e) => e.scoreId == score.id) ??
-                            false;
-                    final isPending = _adding.contains(score.id);
-                    return ListTile(
-                      leading: const Icon(Icons.music_note),
-                      title: Text(score.title),
-                      subtitle: Text('${score.totalPages} pages'),
-                      trailing: inList
-                          ? const Icon(Icons.check, color: Colors.green)
-                          : isPending
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : IconButton(
-                                  icon: const Icon(Icons.add_circle_outline),
-                                  onPressed: () => _addScore(score),
-                                ),
-                    );
-                  },
+                child: ListTile(
+                  leading: const Icon(Icons.music_note),
+                  title: Text(score.title),
+                  subtitle: Text('${score.totalPages} pages'),
+                  trailing: inList
+                      ? const Icon(Icons.check, color: Colors.green)
+                      : IconButton(
+                          icon: const Icon(Icons.add_circle_outline),
+                          onPressed: () => _addScore(score),
+                        ),
                 ),
               );
             },
