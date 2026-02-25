@@ -171,9 +171,42 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
   Future<void> _removeFromFolder() async {
     final folderId = widget.folderId;
     if (folderId == null) return;
-    await ref
-        .read(scoreRepositoryProvider)
-        .removeFromFolder(widget.score.id, folderId);
+    final result = await showDialog<_RemoveChoice>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove Score'),
+        content: const Text(
+          'Remove from this folder only, or delete the score entirely?\n\n'
+          'Removing from this folder will also remove any tags this folder '
+          'inherited to the score.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_RemoveChoice.folder),
+            child: const Text('Remove from folder'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(_RemoveChoice.all),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete entirely'),
+          ),
+        ],
+      ),
+    );
+    if (result == null) return;
+    if (result == _RemoveChoice.folder) {
+      await ref
+          .read(scoreRepositoryProvider)
+          .removeFromFolder(widget.score.id, folderId);
+    } else {
+      await ref.read(scoreRepositoryProvider).delete(widget.score.id);
+    }
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -232,3 +265,5 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
     }
   }
 }
+
+enum _RemoveChoice { folder, all }
