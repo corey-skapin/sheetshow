@@ -132,6 +132,7 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
               // PDF viewer
               if (score != null)
                 ReaderScreen(
+                  key: ValueKey(score.id),
                   scoreId: score.id,
                   score: score,
                 )
@@ -149,7 +150,8 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.black45,
                     ),
-                    onPressed: () => context.pop(),
+                    onPressed: () =>
+                        context.go('/setlists/${widget.setListId}/builder'),
                   ),
                 ),
               ),
