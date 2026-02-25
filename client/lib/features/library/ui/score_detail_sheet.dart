@@ -8,9 +8,12 @@ import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 /// Bottom sheet for viewing and editing a score's tags, renaming, and deleting.
 class ScoreDetailSheet extends ConsumerStatefulWidget {
-  const ScoreDetailSheet({super.key, required this.score});
+  const ScoreDetailSheet({super.key, required this.score, this.folderId});
 
   final ScoreModel score;
+
+  /// If set, shows a "Remove from folder" action in addition to full delete.
+  final String? folderId;
 
   @override
   ConsumerState<ScoreDetailSheet> createState() => _ScoreDetailSheetState();
@@ -127,6 +130,12 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
                 label: const Text('Rename'),
               ),
               const Spacer(),
+              if (widget.folderId != null)
+                TextButton.icon(
+                  onPressed: _removeFromFolder,
+                  icon: const Icon(Icons.folder_off_outlined),
+                  label: const Text('Remove from folder'),
+                ),
               TextButton.icon(
                 onPressed: _deleteScore,
                 icon: const Icon(Icons.delete_outlined),
@@ -157,6 +166,15 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
 
   Future<void> _saveTags() async {
     await ref.read(scoreRepositoryProvider).setTags(widget.score.id, _ownTags);
+  }
+
+  Future<void> _removeFromFolder() async {
+    final folderId = widget.folderId;
+    if (folderId == null) return;
+    await ref
+        .read(scoreRepositoryProvider)
+        .removeFromFolder(widget.score.id, folderId);
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _renameScore() async {

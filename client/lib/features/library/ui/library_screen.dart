@@ -113,7 +113,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       ),
                     );
                   },
-                  onLongPress: (score) => _showContextMenu(score),
+                  onContextMenu: (score) =>
+                      _showContextMenu(score, folderId: _selectedFolderId),
                 );
               },
             ),
@@ -188,10 +189,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
-  void _showContextMenu(ScoreModel score) {
+  void _showContextMenu(ScoreModel score, {String? folderId}) {
     showModalBottomSheet<void>(
       context: context,
-      builder: (_) => ScoreDetailSheet(score: score),
+      builder: (_) => ScoreDetailSheet(score: score, folderId: folderId),
     );
   }
 }
@@ -200,12 +201,12 @@ class _ScoreGrid extends StatelessWidget {
   const _ScoreGrid({
     required this.scores,
     required this.onTap,
-    required this.onLongPress,
+    required this.onContextMenu,
   });
 
   final List<ScoreModel> scores;
   final void Function(ScoreModel) onTap;
-  final void Function(ScoreModel) onLongPress;
+  final void Function(ScoreModel) onContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +222,8 @@ class _ScoreGrid extends StatelessWidget {
       itemBuilder: (ctx, i) {
         final score = scores[i];
         return GestureDetector(
-          onLongPress: () => onLongPress(score),
+          onLongPress: () => onContextMenu(score),
+          onSecondaryTap: () => onContextMenu(score),
           child: ScoreCard(
             score: score,
             onTap: () => onTap(score),
