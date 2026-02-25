@@ -11,7 +11,8 @@ import 'package:sheetshow/features/setlists/repositories/set_list_repository.dar
 // T063: PerformanceModeScreen — fullscreen set list player with prev/next controls.
 
 /// In-memory position store: maps setListId → last viewed score index.
-final _performancePositionProvider =
+/// Can be written externally to start performance from a specific position.
+final performancePositionProvider =
     StateProvider<Map<String, int>>((ref) => {});
 
 class PerformanceModeScreen extends ConsumerStatefulWidget {
@@ -53,7 +54,7 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
     if (sl == null || !mounted) return;
 
     final savedIndex =
-        ref.read(_performancePositionProvider)[widget.setListId] ?? 0;
+        ref.read(performancePositionProvider)[widget.setListId] ?? 0;
 
     setState(() {
       _scoreIds = sl.entries.map((e) => e.scoreId).toList();
@@ -72,7 +73,7 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
   }
 
   void _savePosition() {
-    ref.read(_performancePositionProvider.notifier).update(
+    ref.read(performancePositionProvider.notifier).update(
           (map) => {...map, widget.setListId: _currentIndex},
         );
   }

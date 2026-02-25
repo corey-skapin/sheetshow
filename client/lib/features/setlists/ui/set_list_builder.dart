@@ -6,6 +6,7 @@ import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/services/search_service.dart';
 import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
+import 'package:sheetshow/features/setlists/ui/performance_mode_screen.dart';
 
 // T061: SetListBuilderScreen — reorderable set list with inline search.
 
@@ -47,6 +48,13 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
         .read(setListRepositoryProvider)
         .getWithEntries(widget.setListId);
     if (mounted) setState(() => _setList = sl);
+  }
+
+  void _startPerformanceFrom(int index) {
+    ref.read(performancePositionProvider.notifier).update(
+          (map) => {...map, widget.setListId: index},
+        );
+    context.go('/setlists/${widget.setListId}/performance');
   }
 
   @override
@@ -149,12 +157,24 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen> {
             ),
             title: Text(score?.title ?? '…'),
             subtitle: Text('${score?.totalPages ?? 0} pages'),
-            trailing: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () async {
-                await ref.read(setListRepositoryProvider).removeEntry(entry.id);
-                await _loadSetList();
-              },
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.play_arrow),
+                  tooltip: 'Start performance from here',
+                  onPressed: () => _startPerformanceFrom(i),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () async {
+                    await ref
+                        .read(setListRepositoryProvider)
+                        .removeEntry(entry.id);
+                    await _loadSetList();
+                  },
+                ),
+              ],
             ),
           ),
         );
