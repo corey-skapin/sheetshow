@@ -228,4 +228,40 @@ void main() {
       expect(await repo.getDepth('child'), 1);
     });
   });
+
+  // ─── ClockService integration ───────────────────────────────────────────────
+
+  group('ClockService', () {
+    test('rename uses ClockService for updatedAt timestamp', () async {
+      final fixedTime = DateTime(2025, 6, 15, 12, 0);
+      final fakeClock = _FakeClockService(fixedTime);
+      final clockRepo = FolderRepository(db, fakeClock);
+
+      await clockRepo.create(makeFolder());
+      await clockRepo.rename('f1', 'Romantic');
+
+      final folder = await clockRepo.getById('f1');
+      expect(folder!.updatedAt, equals(fixedTime));
+    });
+
+    test('create uses ClockService for timestamps', () async {
+      final fixedTime = DateTime(2025, 3, 1);
+      final fakeClock = _FakeClockService(fixedTime);
+      final clockRepo = FolderRepository(db, fakeClock);
+
+      await clockRepo.create(makeFolder());
+
+      final folder = await clockRepo.getById('f1');
+      expect(folder!.createdAt, equals(DateTime(2024)));
+      expect(folder.updatedAt, equals(DateTime(2024)));
+    });
+  });
+}
+
+class _FakeClockService implements ClockService {
+  _FakeClockService(this._time);
+  final DateTime _time;
+
+  @override
+  DateTime now() => _time;
 }
