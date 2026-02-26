@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/workspace_service.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
@@ -48,6 +50,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   void _clearSelection() => setState(() => _selectedIds.clear());
 
+  Future<void> _exitWorkspace() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Exit Workspace'),
+        content: const Text(
+          'Return to the workspace selection screen? '
+          'Your data will be preserved and available when you reopen '
+          'this workspace.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Exit'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await ref.read(workspaceServiceProvider).clearWorkspacePath();
+    ref.invalidate(databaseProvider);
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -85,6 +115,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             icon: const Icon(Icons.playlist_play),
             tooltip: 'Set Lists',
             onPressed: () => context.go('/setlists'),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'More options',
+            onSelected: (v) {
+              if (v == 'exit_workspace') _exitWorkspace();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'exit_workspace',
+                child: Text('Exit Workspace'),
+              ),
+            ],
           ),
         ],
       ),

@@ -50,6 +50,16 @@ class WorkspaceService {
     await file.writeAsString(jsonEncode({'workspacePath': workspacePath}));
   }
 
+  /// Removes the workspace configuration so the app returns to the setup
+  /// screen on next launch. Does **not** delete any data on disk.
+  Future<void> clearWorkspacePath() async {
+    final dir = await _baseDir();
+    final file = File(path.join(dir.path, _configFileName));
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
   /// Creates `<workspace>/.sheetshow/` if it does not already exist.
   Future<void> ensureSheetshowDir(String workspace) async {
     final dir = Directory(path.join(workspace, _sheetshowDirName));

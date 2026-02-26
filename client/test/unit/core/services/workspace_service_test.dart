@@ -99,4 +99,18 @@ void main() {
       expect(await sut.getWorkspacePath(), '/round/trip/path');
     });
   });
+
+  group('WorkspaceService.clearWorkspacePath', () {
+    test('removes config file so getWorkspacePath returns null', () async {
+      await sut.setWorkspacePath('/some/path');
+      expect(await sut.getWorkspacePath(), '/some/path');
+
+      await sut.clearWorkspacePath();
+      expect(await sut.getWorkspacePath(), isNull);
+    });
+
+    test('does not throw when config file does not exist', () async {
+      await expectLater(sut.clearWorkspacePath(), completes);
+    });
+  });
 }
