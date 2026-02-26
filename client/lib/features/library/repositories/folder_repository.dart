@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as path;
 import 'package:sheetshow/core/constants/app_constants.dart';
 import 'package:sheetshow/core/database/app_database.dart';
 import 'package:sheetshow/core/services/error_display_service.dart';
@@ -24,6 +27,14 @@ class FolderRepository {
     return row == null ? null : _mapRow(row);
   }
 
+  /// Returns the folder whose [FolderModel.diskPath] matches [diskPath].
+  Future<FolderModel?> getByDiskPath(String diskPath) async {
+    final row = await (_db.select(_db.folders)
+          ..where((f) => f.folderPath.equals(diskPath)))
+        .getSingleOrNull();
+    return row == null ? null : _mapRow(row);
+  }
+
   Future<void> create(FolderModel folder) async {
     if (folder.parentFolderId != null) {
       final depth = await getDepth(folder.parentFolderId!);
@@ -43,11 +54,34 @@ class FolderRepository {
             parentFolderId: Value(folder.parentFolderId),
             createdAt: folder.createdAt,
             updatedAt: folder.updatedAt,
+            folderPath: Value(folder.diskPath),
           ),
         );
   }
 
+  /// Renames the folder in the database.
+  ///
+  /// If [FolderModel.diskPath] is set and the directory exists on disk, it is
+  /// also renamed and [folder_path] is updated in the database.
   Future<void> rename(String id, String name) async {
+    final folder = await getById(id);
+
+    if (folder?.diskPath != null) {
+      final oldDir = Directory(folder!.diskPath!);
+      if (await oldDir.exists()) {
+        final parentPath = path.dirname(folder.diskPath!);
+        final newDiskPath = path.join(parentPath, name);
+        await oldDir.rename(newDiskPath);
+        await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
+            .write(FoldersCompanion(
+          name: Value(name),
+          folderPath: Value(newDiskPath),
+          updatedAt: Value(DateTime.now()),
+        ));
+        return;
+      }
+    }
+
     await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
         .write(FoldersCompanion(
       name: Value(name),
@@ -69,6 +103,18 @@ class FolderRepository {
 
   Future<void> delete(String id) async {
     await (_db.delete(_db.folders)..where((f) => f.id.equals(id))).go();
+  }
+
+  /// Updates [folder_path] and [name] in the database when the directory is
+  /// moved externally (called by [FolderWatchService]).
+  Future<void> updateDiskPath(
+      String id, String newName, String newDiskPath) async {
+    await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
+        .write(FoldersCompanion(
+      name: Value(newName),
+      folderPath: Value(newDiskPath),
+      updatedAt: Value(DateTime.now()),
+    ));
   }
 
   // ─── Folder tags ───────────────────────────────────────────────────────────
@@ -146,10 +192,11 @@ class FolderRepository {
         parentFolderId: row.parentFolderId,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
+        diskPath: row.folderPath,
       );
 }
 
 /// Riverpod provider for [FolderRepository].
 final folderRepositoryProvider = Provider<FolderRepository>((ref) {
-  return FolderRepository(ref.watch(databaseProvider));
+  return FolderRepository(ref.watch(databaseProvider).requireValue);
 });

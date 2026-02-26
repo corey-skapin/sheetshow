@@ -8,6 +8,7 @@ class FolderModel {
     this.parentFolderId,
     required this.createdAt,
     required this.updatedAt,
+    this.diskPath,
   });
 
   final String id;
@@ -16,12 +17,17 @@ class FolderModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Absolute path of the corresponding directory on disk, or `null` if this
+  /// folder was created entirely within the app.
+  final String? diskPath;
+
   FolderModel copyWith({
     String? id,
     String? name,
     String? parentFolderId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? diskPath,
   }) =>
       FolderModel(
         id: id ?? this.id,
@@ -29,6 +35,7 @@ class FolderModel {
         parentFolderId: parentFolderId ?? this.parentFolderId,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
+        diskPath: diskPath ?? this.diskPath,
       );
 
   @override

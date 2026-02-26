@@ -79,5 +79,47 @@ void main() {
         expect(a.hashCode, b.hashCode);
       });
     });
+
+    group('diskPath', () {
+      test('defaults to null', () {
+        final folder = makeFolder();
+        expect(folder.diskPath, isNull);
+      });
+
+      test('can be set at construction', () {
+        final folder = FolderModel(
+          id: 'f1',
+          name: 'Jazz',
+          createdAt: now,
+          updatedAt: now,
+          diskPath: '/music/jazz',
+        );
+        expect(folder.diskPath, '/music/jazz');
+      });
+
+      test('copyWith preserves diskPath when not overridden', () {
+        final folder = FolderModel(
+          id: 'f1',
+          name: 'Jazz',
+          createdAt: now,
+          updatedAt: now,
+          diskPath: '/music/jazz',
+        );
+        final copy = folder.copyWith(name: 'Blues');
+        expect(copy.diskPath, '/music/jazz');
+      });
+
+      test('copyWith can update diskPath', () {
+        final folder = FolderModel(
+          id: 'f1',
+          name: 'Jazz',
+          createdAt: now,
+          updatedAt: now,
+          diskPath: '/music/jazz',
+        );
+        final copy = folder.copyWith(diskPath: '/music/blues');
+        expect(copy.diskPath, '/music/blues');
+      });
+    });
   });
 }

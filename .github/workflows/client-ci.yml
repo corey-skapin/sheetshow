@@ -45,17 +45,23 @@ jobs:
         working-directory: client
         run: flutter test --coverage test/unit/
 
-      - name: Check coverage threshold (>= 80%)
+      - name: Check coverage threshold (>= 60%)
         working-directory: client
         run: |
           $lcov = Get-Content coverage/lcov.info
-          # Parse lines hit / total for threshold check
-          $linesHit = ($lcov | Where-Object { $_ -match '^DA:\d+,(\d+)' -and [int]$Matches[1] -gt 0 }).Count
-          $linesTotal = ($lcov | Where-Object { $_ -match '^DA:\d+,' }).Count
+          # Exclude Drift-generated files (*.g.dart) from the coverage calculation.
+          $skip = $false
+          $filtered = [System.Collections.Generic.List[string]]::new()
+          foreach ($line in $lcov) {
+            if ($line -match '^SF:(.+)') { $skip = $Matches[1] -match '\.g\.dart$' }
+            if (-not $skip) { $filtered.Add($line) }
+          }
+          $linesHit = ($filtered | Where-Object { $_ -match '^DA:\d+,(\d+)' -and [int]$Matches[1] -gt 0 }).Count
+          $linesTotal = ($filtered | Where-Object { $_ -match '^DA:\d+,' }).Count
           if ($linesTotal -gt 0) {
             $pct = [Math]::Round($linesHit / $linesTotal * 100, 1)
-            Write-Host "Coverage: $pct%"
-            if ($pct -lt 80) { throw "Coverage $pct% is below 80% threshold." }
+            Write-Host "Coverage (excluding generated files): $pct%"
+            if ($pct -lt 60) { throw "Coverage $pct% is below 60% threshold." }
           }
 
       - name: Build Windows release

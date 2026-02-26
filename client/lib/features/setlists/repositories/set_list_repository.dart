@@ -139,5 +139,5 @@ class SetListRepository {
 
 /// Riverpod provider for [SetListRepository].
 final setListRepositoryProvider = Provider<SetListRepository>((ref) {
-  return SetListRepository(ref.watch(databaseProvider));
+  return SetListRepository(ref.watch(databaseProvider).requireValue);
 });

@@ -1,9 +1,9 @@
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sheetshow/core/services/clock_service.dart';
@@ -14,7 +14,7 @@ import 'package:sheetshow/features/library/repositories/folder_repository.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 import 'package:sheetshow/features/library/services/thumbnail_service.dart';
 
-// T036: ImportService — picks PDFs or a folder, copies locally, registers in DB, triggers thumbnail.
+// T036: ImportService — picks PDFs or a folder, registers in DB in-place, triggers thumbnail.
 
 /// A simple cancellation token. Call [cancel] to request cancellation;
 /// check [isCancelled] inside loops.
@@ -25,6 +25,8 @@ class CancellationToken {
 }
 
 /// Handles PDF import from the file system into the SheetShow library.
+///
+/// Scores are referenced **in-place** — no file copying occurs.
 class ImportService {
   ImportService({
     required this.scoreRepository,
@@ -38,8 +40,8 @@ class ImportService {
   final ThumbnailService thumbnailService;
   final ClockService clockService;
 
-  /// Open the system file picker (multi-select), validate, copy, and register
-  /// each selected PDF.
+  /// Open the system file picker (multi-select), validate, and register
+  /// each selected PDF in-place.
   ///
   /// [onProgress] is called after each successful import with (done, total).
   /// [cancelToken] can be used to stop after the current file finishes.
@@ -92,6 +94,7 @@ class ImportService {
       parentFolderId: parentFolderId,
       createdAt: clockService.now(),
       updatedAt: clockService.now(),
+      diskPath: dirPath,
     );
     await folderRepository.create(rootFolder);
 
@@ -154,6 +157,7 @@ class ImportService {
           parentFolderId: parentFolderId,
           createdAt: clockService.now(),
           updatedAt: clockService.now(),
+          diskPath: subdir.path,
         );
         await folderRepository.create(subFolder);
         final subResults = await _importDirRecursive(
@@ -194,7 +198,11 @@ class ImportService {
     return results;
   }
 
-  /// Copy and register a single PDF file. Returns null if the file is invalid.
+  /// Register a single PDF file in-place. Returns null if the file is invalid.
+  ///
+  /// Scores are **not copied** — [ScoreModel.localFilePath] points directly to
+  /// [sourcePath] in the workspace.
+  ///
   /// If a score with the same filename already exists, adds a folder membership
   /// to the existing score instead of creating a duplicate.
   Future<ScoreModel?> _importSingleFile(
@@ -218,27 +226,17 @@ class ImportService {
       return existing;
     }
 
-    await _checkFreeDiskSpace(sourceFile);
-
-    final appDir = await getApplicationDocumentsDirectory();
-    final scoreId = const Uuid().v4();
-    final destDir = Directory(path.join(appDir.path, 'scores', scoreId));
-    await destDir.create(recursive: true);
-
-    final destPath = path.join(destDir.path, filename);
-    await sourceFile.copy(destPath);
-
     int totalPages;
     try {
-      final doc = await PdfDocument.openFile(destPath);
+      final doc = await PdfDocument.openFile(sourcePath);
       totalPages = doc.pages.length;
       await doc.dispose();
       if (totalPages == 0) throw const InvalidPdfException();
     } catch (e) {
-      await File(destPath).delete();
       throw const InvalidPdfException();
     }
 
+    final scoreId = const Uuid().v4();
     final now = clockService.now();
     final title = path.basenameWithoutExtension(sourcePath);
 
@@ -246,24 +244,15 @@ class ImportService {
       id: scoreId,
       title: title,
       filename: filename,
-      localFilePath: destPath,
+      localFilePath: sourcePath,
       totalPages: totalPages,
       updatedAt: now,
     );
 
     await scoreRepository.insert(score, folderId: folderId);
-    unawaited(thumbnailService.generateThumbnail(destPath, scoreId));
+    unawaited(thumbnailService.generateThumbnail(sourcePath, scoreId));
 
     return score;
-  }
-
-  Future<void> _checkFreeDiskSpace(File sourceFile) async {
-    final appDir = await getApplicationDocumentsDirectory();
-    try {
-      final _ = appDir.statSync();
-    } catch (_) {
-      // Skip space check if unable to determine
-    }
   }
 }
 
