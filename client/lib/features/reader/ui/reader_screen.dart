@@ -140,6 +140,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
             scoreId: score.id,
             annotationsVisible: _annotationsVisible,
             editMode: _editMode,
+            startPage: score.startPage,
+            endPage: score.endPage,
             onPageChanged: (page, total) {
               if (mounted) {
                 setState(() {

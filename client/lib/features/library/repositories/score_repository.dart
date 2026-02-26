@@ -17,6 +17,7 @@ class ScoreRepository {
   // ─── Watch ────────────────────────────────────────────────────────────────
 
   // Subquery that returns |-separated effective tags for a score row aliased 's'.
+  // Includes: own tags + folder tags + realbook tags.
   static const _tagsSubquery = '''
     (SELECT GROUP_CONCAT(tag, '|') FROM (
       SELECT tag FROM score_tags WHERE score_id = s.id
@@ -24,6 +25,9 @@ class ScoreRepository {
       SELECT ft.tag FROM folder_tags ft
       JOIN score_folder_memberships mem ON mem.folder_id = ft.folder_id
       WHERE mem.score_id = s.id
+      UNION
+      SELECT rt.tag FROM realbook_tags rt
+      WHERE rt.realbook_id = s.realbook_id
     )) AS tags_flat
   ''';
 
@@ -146,19 +150,26 @@ class ScoreRepository {
         ));
   }
 
-  /// Returns the score's own tags merged with tags from all folders it belongs to.
+  /// Returns the score's own tags merged with tags from all folders it belongs to
+  /// and tags from its parent realbook (if any).
   Future<List<String>> getEffectiveTags(String scoreId) async {
     final own = await getTags(scoreId);
-    final folderTagRows = await _db.customSelect(
+    final inheritedRows = await _db.customSelect(
       '''
-      SELECT ft.tag FROM folder_tags ft
-      JOIN score_folder_memberships m ON m.folder_id = ft.folder_id
-      WHERE m.score_id = ?
+      SELECT tag FROM (
+        SELECT ft.tag FROM folder_tags ft
+        JOIN score_folder_memberships m ON m.folder_id = ft.folder_id
+        WHERE m.score_id = ?1
+        UNION
+        SELECT rt.tag FROM realbook_tags rt
+        JOIN scores s ON s.realbook_id = rt.realbook_id
+        WHERE s.id = ?1
+      )
       ''',
       variables: [Variable.withString(scoreId)],
     ).get();
-    final folderTags = folderTagRows.map((r) => r.read<String>('tag')).toList();
-    return {...own, ...folderTags}.toList()..sort();
+    final inherited = inheritedRows.map((r) => r.read<String>('tag')).toList();
+    return {...own, ...inherited}.toList()..sort();
   }
 
   /// Updates the score's metadata.
