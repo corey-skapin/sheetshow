@@ -58,6 +58,8 @@ jobs:
             client/.dart_tool/build/
             client/lib/core/database/app_database.g.dart
           key: build-runner-${{ runner.os }}-${{ hashFiles('client/lib/**/*.dart', 'client/pubspec.yaml') }}
+          restore-keys: |
+            build-runner-${{ runner.os }}-
 
       - name: Generate Dart code (Drift)
         working-directory: client
