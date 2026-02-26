@@ -66,6 +66,41 @@ class FolderWatchService {
     _sub = _fileSystemWatcher(workspacePath).listen(_scheduleEvent);
   }
 
+  /// Walks [workspacePath] and imports any folders/PDFs not already in the
+  /// database. Call once after [start] to populate the library on first launch
+  /// (and on subsequent launches to pick up any offline changes).
+  ///
+  /// Skips the `.sheetshow` internal directory. Idempotent — safe to call
+  /// even if the library already contains some or all of the files found.
+  Future<void> scanWorkspace(String workspacePath) async {
+    final rootDir = Directory(workspacePath);
+    if (!await rootDir.exists()) return;
+
+    final dirs = <String>[];
+    final pdfs = <String>[];
+
+    await for (final entity in rootDir.list(recursive: true)) {
+      final relative = path.relative(entity.path, from: workspacePath);
+      // Ignore .sheetshow and everything inside it.
+      if (relative == '.sheetshow' ||
+          relative.startsWith('.sheetshow${path.separator}')) continue;
+      if (entity is Directory) {
+        dirs.add(entity.path);
+      } else if (entity is File && _isPdf(entity.path)) {
+        pdfs.add(entity.path);
+      }
+    }
+
+    // Create folders parent-first (shorter absolute path = shallower = parent).
+    dirs.sort((a, b) => a.length.compareTo(b.length));
+    for (final dirPath in dirs) {
+      await _onDirectoryCreated(dirPath);
+    }
+    for (final pdfPath in pdfs) {
+      await _onPdfCreated(pdfPath);
+    }
+  }
+
   /// Cancels the file-system subscription and all pending debounce timers.
   void stop() {
     for (final timer in _debounceTimers.values) {
@@ -303,6 +338,7 @@ final folderWatchServiceProvider =
 
   if (workspacePath != null) {
     await service.start(workspacePath);
+    await service.scanWorkspace(workspacePath);
   }
   ref.onDispose(service.stop);
   return service;

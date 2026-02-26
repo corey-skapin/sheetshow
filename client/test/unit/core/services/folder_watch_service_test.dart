@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:sheetshow/core/database/app_database.dart';
 import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/services/folder_watch_service.dart';
@@ -502,6 +503,96 @@ void main() {
         ),
         completes,
       );
+    });
+  });
+  // ─── scanWorkspace ────────────────────────────────────────────────
+
+  group('scanWorkspace', () {
+    FolderWatchService buildScanService() {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      return FolderWatchService(
+        scoreRepository: scoreRepo,
+        folderRepository: folderRepo,
+        clockService: const SystemClockService(),
+        fileSystemWatcher: (_) => ctrl.stream,
+        pageCountProvider: (_) async => 3,
+      );
+    }
+
+    test('imports PDFs found in workspace root', () async {
+      final pdfPath = p.join(tempDir.path, 'sonata.pdf');
+      File(pdfPath).writeAsBytesSync([]);
+      final service = buildScanService();
+
+      await service.scanWorkspace(tempDir.path);
+
+      final score = await scoreRepo.getByFilename('sonata.pdf');
+      expect(score, isNotNull);
+      expect(score!.title, 'sonata');
+    });
+
+    test('imports subdirectory as folder', () async {
+      final dirPath = p.join(tempDir.path, 'Classical');
+      Directory(dirPath).createSync();
+      final service = buildScanService();
+
+      await service.scanWorkspace(tempDir.path);
+
+      final folder = await folderRepo.getByDiskPath(dirPath);
+      expect(folder, isNotNull);
+      expect(folder!.name, 'Classical');
+    });
+
+    test('PDF in subdirectory is linked to its folder', () async {
+      final subDir = Directory(p.join(tempDir.path, 'Jazz'))..createSync();
+      final pdfPath = p.join(subDir.path, 'miles.pdf');
+      File(pdfPath).writeAsBytesSync([]);
+      final service = buildScanService();
+
+      await service.scanWorkspace(tempDir.path);
+
+      final folder = await folderRepo.getByDiskPath(subDir.path);
+      expect(folder, isNotNull);
+      final score = await scoreRepo.getByFilename('miles.pdf');
+      expect(score, isNotNull);
+      final members = await db.select(db.scoreFolderMemberships).get();
+      expect(
+        members.any((m) => m.scoreId == score!.id && m.folderId == folder!.id),
+        isTrue,
+      );
+    });
+
+    test('skips .sheetshow directory and its contents', () async {
+      final ssDir = Directory(p.join(tempDir.path, '.sheetshow'))..createSync();
+      File(p.join(ssDir.path, 'hidden.pdf')).writeAsBytesSync([]);
+      final service = buildScanService();
+
+      await service.scanWorkspace(tempDir.path);
+
+      expect(await db.select(db.folders).get(), isEmpty);
+      expect(await db.select(db.scores).get(), isEmpty);
+    });
+
+    test('is idempotent — running twice does not create duplicates', () async {
+      File(p.join(tempDir.path, 'prelude.pdf')).writeAsBytesSync([]);
+      Directory(p.join(tempDir.path, 'Baroque')).createSync();
+      final service = buildScanService();
+
+      await service.scanWorkspace(tempDir.path);
+      await service.scanWorkspace(tempDir.path);
+
+      expect(await db.select(db.scores).get(), hasLength(1));
+      expect(await db.select(db.folders).get(), hasLength(1));
+    });
+
+    test('does nothing when directory does not exist', () async {
+      final service = buildScanService();
+      await expectLater(
+        service.scanWorkspace('/nonexistent/path/xyz'),
+        completes,
+      );
+      expect(await db.select(db.scores).get(), isEmpty);
     });
   });
 }
