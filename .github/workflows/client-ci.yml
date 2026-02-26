@@ -12,8 +12,10 @@ on:
       - 'client/**'
 
 jobs:
-  analyze-test-build:
+  format-check:
     runs-on: windows-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -24,18 +26,44 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
           cache: true
+          pub-cache-key: "pub-${{ runner.os }}-${{ hashFiles('client/pubspec.yaml') }}"
+      - name: Dart format check
+        working-directory: client
+        run: dart format --set-exit-if-changed lib/ test/
+
+  analyze-test-build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter 3.24
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+          pub-cache-key: "pub-${{ runner.os }}-${{ hashFiles('client/pubspec.yaml') }}"
 
       - name: Install dependencies
         working-directory: client
         run: flutter pub get
 
+      - name: Cache build_runner outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            client/.dart_tool/build/
+            client/lib/core/database/app_database.g.dart
+          key: build-runner-${{ runner.os }}-${{ hashFiles('client/lib/**/*.dart', 'client/pubspec.yaml') }}
+          restore-keys: |
+            build-runner-${{ runner.os }}-
+
       - name: Generate Dart code (Drift)
         working-directory: client
         run: dart run build_runner build --delete-conflicting-outputs
-
-      - name: Dart format check
-        working-directory: client
-        run: dart format --set-exit-if-changed lib/ test/
 
       - name: Flutter analyze (zero warnings)
         working-directory: client
