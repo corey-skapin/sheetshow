@@ -19,6 +19,17 @@ class Scores extends Table {
   TextColumn get thumbnailPath => text().nullable()();
   DateTimeColumn get updatedAt => dateTime()();
 
+  /// If set, this score is an excerpt from a realbook.
+  TextColumn get realbookId => text()
+      .nullable()
+      .references(Realbooks, #id, onDelete: KeyAction.cascade)();
+
+  /// First page of this score in the realbook PDF (1-indexed). Null for standalone scores.
+  IntColumn get startPage => integer().nullable()();
+
+  /// Last page of this score in the realbook PDF (1-indexed). Null for standalone scores.
+  IntColumn get endPage => integer().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -114,6 +125,29 @@ class AnnotationLayers extends Table {
       ];
 }
 
+// ─── Realbook tables ──────────────────────────────────────────────────────────
+
+class Realbooks extends Table {
+  TextColumn get id => text()();
+  TextColumn get title => text()();
+  TextColumn get filename => text()();
+  TextColumn get localFilePath => text()();
+  IntColumn get totalPages => integer()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class RealbookTags extends Table {
+  TextColumn get realbookId =>
+      text().references(Realbooks, #id, onDelete: KeyAction.cascade)();
+  TextColumn get tag => text()();
+
+  @override
+  Set<Column> get primaryKey => {realbookId, tag};
+}
+
 // ─── FTS5 virtual table ───────────────────────────────────────────────────────
 
 @DriftDatabase(
@@ -126,6 +160,8 @@ class AnnotationLayers extends Table {
     SetLists,
     SetListEntries,
     AnnotationLayers,
+    Realbooks,
+    RealbookTags,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -137,7 +173,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -221,6 +257,31 @@ class AppDatabase extends _$AppDatabase {
           if (from < 5) {
             await customStatement(
                 'ALTER TABLE folders ADD COLUMN folder_path TEXT');
+          }
+          if (from < 6) {
+            await customStatement('''
+              CREATE TABLE IF NOT EXISTS realbooks (
+                id TEXT NOT NULL PRIMARY KEY,
+                title TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                local_file_path TEXT NOT NULL,
+                total_pages INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+              )
+            ''');
+            await customStatement('''
+              CREATE TABLE IF NOT EXISTS realbook_tags (
+                realbook_id TEXT NOT NULL REFERENCES realbooks(id) ON DELETE CASCADE,
+                tag TEXT NOT NULL,
+                PRIMARY KEY (realbook_id, tag)
+              )
+            ''');
+            await customStatement(
+                'ALTER TABLE scores ADD COLUMN realbook_id TEXT REFERENCES realbooks(id) ON DELETE CASCADE');
+            await customStatement(
+                'ALTER TABLE scores ADD COLUMN start_page INTEGER');
+            await customStatement(
+                'ALTER TABLE scores ADD COLUMN end_page INTEGER');
           }
         },
         beforeOpen: (details) async {
