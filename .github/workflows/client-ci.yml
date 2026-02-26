@@ -2,7 +2,7 @@ name: Client CI
 
 on:
   push:
-    branches: [main, 'feat/**']
+    branches: [main, 'feat/**', 'refactor/**']
     paths:
       - 'client/**'
       - '.github/workflows/client-ci.yml'
