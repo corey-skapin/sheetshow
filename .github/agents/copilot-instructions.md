@@ -37,7 +37,7 @@ client/              Flutter app
     integration/     Widget / service integration tests
 .github/
   workflows/
-    client-ci.yml   CI: analyze → test (≥80% coverage) → build
+    client-ci.yml   CI: analyze → test (≥60% coverage, excluding generated files) → build
   agents/
     copilot-instructions.md   ← this file
 ```
@@ -82,7 +82,7 @@ flutter build windows --release
 - Use `mockito` for mocking; `@GenerateMocks([...])` + `build_runner` for generated mocks
 - Use an **in-memory Drift database** (`NativeDatabase.memory()`) for repository tests — do not mock the DB
 - Integration tests go in `test/integration/` and use `WidgetTester` or real (temp-dir) databases
-- CI enforces **≥ 80% line coverage** — new code must not drop coverage below this threshold
+- CI enforces **≥ 60% line coverage** (excluding Drift-generated `*.g.dart` files) — new code must not drop coverage below this threshold
 - For file-system-dependent services (e.g. `FolderWatchService`, `WorkspaceService`):
   - Use `Directory.systemTemp.createTempSync()` in tests; clean up in `tearDown`
   - Inject `Directory`/`File` paths rather than hardcoding so tests can override them
@@ -100,6 +100,7 @@ flutter build windows --release
 - Pre-commit hook (`.githooks/pre-commit`): `dart format` check + `flutter analyze` — must pass
 - Commits follow Conventional Commits: `feat(scope):`, `fix(scope):`, `refactor(scope):`, etc.
 - Every commit that adds a feature should include or update tests
+- **Never push directly to `main`** — always work on a feature branch and open a PR; pushing to `main` requires explicit approval from the repo owner
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
