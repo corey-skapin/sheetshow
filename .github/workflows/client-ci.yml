@@ -25,7 +25,8 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-
+          cache: true
+          pub-cache-key: "pub-${{ runner.os }}-${{ hashFiles('client/pubspec.yaml') }}"
       - name: Dart format check
         working-directory: client
         run: dart format --set-exit-if-changed lib/ test/
