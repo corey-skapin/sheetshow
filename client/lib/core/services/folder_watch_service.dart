@@ -78,7 +78,8 @@ class FolderWatchService {
 
   // ─── Suppression ───────────────────────────────────────────────────────────
 
-  /// Marks [filePath] so that the next file-system event for it is ignored.
+  /// Marks [filePath] so that file-system events for it are ignored until
+  /// [unsuppress] is called.
   void suppress(String filePath) =>
       _suppressedPaths.add(filePath.toLowerCase());
 
