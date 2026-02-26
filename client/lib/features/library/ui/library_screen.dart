@@ -15,6 +15,7 @@ import 'package:sheetshow/features/library/services/search_service.dart';
 import 'package:sheetshow/features/library/ui/score_card.dart';
 import 'package:sheetshow/features/library/ui/folder_tree.dart';
 import 'package:sheetshow/features/library/ui/score_detail_sheet.dart';
+import 'package:sheetshow/features/library/ui/realbook_detail_sheet.dart';
 import 'package:sheetshow/features/reader/models/reader_args.dart';
 
 // T039: LibraryScreen — reactive grid of scores with import FAB, folder sidebar, search bar.
@@ -899,6 +900,10 @@ class _RealbookSidebar extends ConsumerWidget {
                 selectedTileColor: colorScheme.primaryContainer,
                 onTap: () => onRealbookSelected(
                   selectedRealbookId == rb.id ? null : rb.id,
+                ),
+                onLongPress: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => RealbookDetailSheet(realbook: rb),
                 ),
               ),
             ),
