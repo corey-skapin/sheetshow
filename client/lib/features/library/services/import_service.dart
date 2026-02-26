@@ -141,7 +141,8 @@ class ImportService {
           done.value++;
           onProgress?.call(done.value, total);
         }
-      } catch (_) {
+      } catch (e, st) {
+        debugPrint('Import failed for ${pdfFile.path}: $e\n$st');
         done.value++;
         onProgress?.call(done.value, total);
       }
@@ -169,7 +170,9 @@ class ImportService {
           total,
         );
         results.addAll(subResults);
-      } catch (_) {}
+      } catch (e, st) {
+        debugPrint('Folder import failed for ${subdir.path}: $e\n$st');
+      }
     }
 
     return results;
@@ -191,8 +194,8 @@ class ImportService {
           results.add(score);
           onProgress?.call(results.length, total);
         }
-      } catch (_) {
-        // Skip invalid/corrupt files; continue with the rest.
+      } catch (e, st) {
+        debugPrint('Import failed for $sourcePath: $e\n$st');
       }
     }
     return results;

@@ -46,8 +46,6 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   # Mocking
   mockito: ^5.4.4
-  # HTTP mock client (used in tests)
-  http: ^1.0.0
 
 flutter:
   uses-material-design: true

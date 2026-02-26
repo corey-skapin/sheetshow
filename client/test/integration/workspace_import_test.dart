@@ -11,6 +11,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/services/workspace_service.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
@@ -43,7 +44,7 @@ void main() {
 
     // Open first database instance and insert a score
     final db1 = AppDatabase.openAt(dbPath);
-    final repo1 = ScoreRepository(db1);
+    final repo1 = ScoreRepository(db1, const SystemClockService());
 
     await repo1.insert(
       ScoreModel(
@@ -60,7 +61,7 @@ void main() {
 
     // ── Phase 2: Open second instance and verify data ───────────────────────
     final db2 = AppDatabase.openAt(dbPath);
-    final repo2 = ScoreRepository(db2);
+    final repo2 = ScoreRepository(db2, const SystemClockService());
 
     final restored = await repo2.getById('score-1');
     expect(restored, isNotNull);
@@ -89,7 +90,7 @@ void main() {
   test('in-memory database is usable for testing (NativeDatabase.memory)',
       () async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
-    final repo = ScoreRepository(db);
+    final repo = ScoreRepository(db, const SystemClockService());
 
     await repo.insert(
       ScoreModel(

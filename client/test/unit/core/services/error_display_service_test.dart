@@ -23,30 +23,6 @@ void main() {
     });
   });
 
-  group('NetworkException', () {
-    test('code is network_error', () {
-      const e = NetworkException('no connection');
-      expect(e.code, 'network_error');
-      expect(e.message, 'no connection');
-    });
-  });
-
-  group('ValidationException', () {
-    test('code is validation_error', () {
-      const e = ValidationException('bad input');
-      expect(e.code, 'validation_error');
-      expect(e.message, 'bad input');
-    });
-  });
-
-  group('QuotaExceededException', () {
-    test('has quota_exceeded code', () {
-      const e = QuotaExceededException();
-      expect(e.code, 'quota_exceeded');
-      expect(e.message, isNotEmpty);
-    });
-  });
-
   group('LocalStorageFullException', () {
     test('has local_storage_full code', () {
       const e = LocalStorageFullException();
@@ -63,19 +39,19 @@ void main() {
     });
   });
 
-  group('AuthException', () {
-    test('has auth_error code', () {
-      const e = AuthException('not logged in');
-      expect(e.code, 'auth_error');
-      expect(e.message, 'not logged in');
-    });
-  });
-
   group('FolderDepthException', () {
     test('has folder_depth_exceeded code', () {
       const e = FolderDepthException();
       expect(e.code, 'folder_depth_exceeded');
       expect(e.message, isNotEmpty);
+    });
+  });
+
+  group('DuplicateFolderNameException', () {
+    test('has duplicate_folder_name code', () {
+      final e = DuplicateFolderNameException('Jazz');
+      expect(e.code, 'duplicate_folder_name');
+      expect(e.message, contains('Jazz'));
     });
   });
 
@@ -89,54 +65,6 @@ void main() {
       expect(sut.getDisplayMessage(e), 'custom message');
     });
 
-    test('maps socket error to connectivity message', () {
-      final e = Exception('SocketException: connection refused');
-      expect(
-        sut.getDisplayMessage(e),
-        contains('internet connection'),
-      );
-    });
-
-    test('maps connection error to connectivity message', () {
-      final e = Exception('connection timed out');
-      expect(sut.getDisplayMessage(e), contains('internet connection'));
-    });
-
-    test('maps timeout to connectivity message', () {
-      final e = Exception('request timeout');
-      expect(sut.getDisplayMessage(e), contains('internet connection'));
-    });
-
-    test('maps 401 to session-expired message', () {
-      final e = Exception('error 401 unauthorized');
-      expect(sut.getDisplayMessage(e), contains('session has expired'));
-    });
-
-    test('maps unauthorized keyword to session-expired message', () {
-      final e = Exception('unauthorized access');
-      expect(sut.getDisplayMessage(e), contains('session has expired'));
-    });
-
-    test('maps 403 to permission message', () {
-      final e = Exception('403 forbidden');
-      expect(sut.getDisplayMessage(e), contains('permission'));
-    });
-
-    test('maps forbidden keyword to permission message', () {
-      final e = Exception('forbidden resource');
-      expect(sut.getDisplayMessage(e), contains('permission'));
-    });
-
-    test('maps 404 to not-found message', () {
-      final e = Exception('404 not found');
-      expect(sut.getDisplayMessage(e), contains('not found'));
-    });
-
-    test('maps not found keyword to not-found message', () {
-      final e = Exception('resource not found');
-      expect(sut.getDisplayMessage(e), contains('not found'));
-    });
-
     test('maps storage error to storage message', () {
       final e = Exception('storage full');
       expect(sut.getDisplayMessage(e), contains('storage'));
@@ -147,14 +75,19 @@ void main() {
       expect(sut.getDisplayMessage(e), contains('storage'));
     });
 
+    test('maps permission error to permission message', () {
+      final e = Exception('permission denied');
+      expect(sut.getDisplayMessage(e), contains('Permission denied'));
+    });
+
+    test('maps access denied to permission message', () {
+      final e = Exception('access denied');
+      expect(sut.getDisplayMessage(e), contains('Permission denied'));
+    });
+
     test('returns generic message for unknown error', () {
       final e = Exception('something really unexpected');
       expect(sut.getDisplayMessage(e), contains('Something went wrong'));
-    });
-
-    test('NetworkException message returned directly', () {
-      const e = NetworkException('offline');
-      expect(sut.getDisplayMessage(e), 'offline');
     });
   });
 }

@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
@@ -15,7 +16,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('score_repo_test_');
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    repo = ScoreRepository(db);
+    repo = ScoreRepository(db, const SystemClockService());
   });
 
   tearDown(() async {
