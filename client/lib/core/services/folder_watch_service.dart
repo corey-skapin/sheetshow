@@ -12,6 +12,7 @@ import 'package:sheetshow/core/services/workspace_service.dart';
 import 'package:sheetshow/features/library/models/folder_model.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/folder_repository.dart';
+import 'package:sheetshow/features/library/repositories/realbook_repository.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 // FolderWatchService — watches the workspace folder for file-system changes
@@ -38,17 +39,20 @@ class FolderWatchService {
     required ScoreRepository scoreRepository,
     required FolderRepository folderRepository,
     required ClockService clockService,
+    required RealbookRepository realbookRepository,
     FileSystemWatcher? fileSystemWatcher,
     PageCountProvider? pageCountProvider,
   })  : _scoreRepository = scoreRepository,
         _folderRepository = folderRepository,
         _clockService = clockService,
+        _realbookRepository = realbookRepository,
         _fileSystemWatcher = fileSystemWatcher ?? _defaultWatcher,
         _pageCountProvider = pageCountProvider ?? _defaultPageCount;
 
   final ScoreRepository _scoreRepository;
   final FolderRepository _folderRepository;
   final ClockService _clockService;
+  final RealbookRepository _realbookRepository;
   final FileSystemWatcher _fileSystemWatcher;
   final PageCountProvider _pageCountProvider;
 
@@ -232,6 +236,9 @@ class FolderWatchService {
   // ─── PDF events ────────────────────────────────────────────────────────────
 
   Future<void> _onPdfCreated(String pdfPath) async {
+    // Skip files that belong to imported realbooks.
+    if (await _realbookRepository.isRealbookPath(pdfPath)) return;
+
     final filename = path.basename(pdfPath);
     final existing = await _scoreRepository.getByFilename(filename);
     if (existing != null) {
@@ -343,6 +350,7 @@ final folderWatchServiceProvider =
   final scoreRepo = ref.watch(scoreRepositoryProvider);
   final folderRepo = ref.watch(folderRepositoryProvider);
   final clockSvc = ref.watch(clockServiceProvider);
+  final realbookRepo = ref.watch(realbookRepositoryProvider);
   final workspaceService = ref.watch(workspaceServiceProvider);
 
   final workspacePath = await workspaceService.getWorkspacePath();
@@ -351,6 +359,7 @@ final folderWatchServiceProvider =
     scoreRepository: scoreRepo,
     folderRepository: folderRepo,
     clockService: clockSvc,
+    realbookRepository: realbookRepo,
   );
 
   if (workspacePath != null) {

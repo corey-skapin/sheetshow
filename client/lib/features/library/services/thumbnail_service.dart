@@ -14,23 +14,19 @@ class ThumbnailService {
 
   final ScoreRepository _scoreRepository;
 
-  /// Generate a thumbnail for the first page of the PDF.
+  /// Generate a thumbnail for a specific page of the PDF (defaults to page 1).
   Future<String?> generateThumbnail(
     String localFilePath,
-    String scoreId,
-  ) async {
+    String scoreId, {
+    int pageIndex = 0,
+  }) async {
     try {
       final cacheDir = await getApplicationCacheDirectory();
       final thumbDir = Directory(path.join(cacheDir.path, 'thumbnails'));
       await thumbDir.create(recursive: true);
       final thumbPath = path.join(thumbDir.path, '$scoreId.png');
 
-      // Render on the main isolate: dart:ui (createImage/toByteData) is not
-      // available in background isolates (Flutter engine restriction).
-      // This call is fire-and-forget (invoked with `unawaited` from the
-      // import flow), so it does not block navigation but may briefly
-      // affect rendering performance for large PDFs.
-      await _renderThumbnail((localFilePath, thumbPath));
+      await _renderThumbnail((localFilePath, thumbPath, pageIndex));
 
       // Update the score record with the thumbnail path
       final score = await _scoreRepository.getById(scoreId);
@@ -47,15 +43,15 @@ class ThumbnailService {
 }
 
 /// Top-level function for isolate execution.
-Future<void> _renderThumbnail((String, String) params) async {
-  final (sourcePath, destPath) = params;
+Future<void> _renderThumbnail((String, String, int) params) async {
+  final (sourcePath, destPath, pageIndex) = params;
   final doc = await PdfDocument.openFile(sourcePath);
-  if (doc.pages.isEmpty) {
+  if (doc.pages.isEmpty || pageIndex >= doc.pages.length) {
     await doc.dispose();
     return;
   }
 
-  final page = doc.pages.first;
+  final page = doc.pages[pageIndex];
   const thumbWidth = 200.0;
   final scale = (thumbWidth / page.width).clamp(0.1, 4.0);
 

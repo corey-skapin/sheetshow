@@ -32,6 +32,32 @@ class RealbookRepository {
     return row == null ? null : _mapRow(row);
   }
 
+  /// Check if a file path belongs to a known realbook.
+  Future<bool> isRealbookPath(String filePath) async {
+    final row = await (_db.select(_db.realbooks)
+          ..where((r) => r.localFilePath.equals(filePath))
+          ..limit(1))
+        .getSingleOrNull();
+    return row != null;
+  }
+
+  /// Watch all realbooks as a stream (for reactive UI).
+  Stream<List<RealbookModel>> watchAll() {
+    return _db
+        .customSelect(
+          '''
+      SELECT r.*, (
+        SELECT COUNT(*) FROM scores s WHERE s.realbook_id = r.id
+      ) AS score_count
+      FROM realbooks r
+      ORDER BY r.title COLLATE NOCASE
+    ''',
+          readsFrom: {_db.realbooks, _db.scores},
+        )
+        .watch()
+        .map((rows) => rows.map(_mapSqlRow).toList());
+  }
+
   // ─── Write ─────────────────────────────────────────────────────────────────
 
   /// Insert a new realbook.

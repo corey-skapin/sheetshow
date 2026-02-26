@@ -54,13 +54,43 @@ class ScoreCard extends StatelessWidget {
                       horizontal: AppSpacing.sm,
                       vertical: AppSpacing.xs,
                     ),
-                    child: Text(
-                      score.title,
-                      style: AppTypography.bodySmall.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            if (score.isRealbookExcerpt)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(right: AppSpacing.xs),
+                                child: Icon(
+                                  Icons.menu_book,
+                                  size: 14,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            Expanded(
+                              child: Text(
+                                score.title,
+                                style: AppTypography.bodySmall.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (score.realbookTitle != null)
+                          Text(
+                            score.realbookTitle!,
+                            style: AppTypography.labelSmall.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
                     ),
                   ),
                   // Tags row

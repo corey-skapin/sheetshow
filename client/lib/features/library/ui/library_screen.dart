@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:sheetshow/core/database/app_database.dart';
 import 'package:sheetshow/core/services/workspace_service.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/core/theme/app_typography.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/models/realbook_model.dart';
+import 'package:sheetshow/features/library/repositories/realbook_repository.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 import 'package:sheetshow/features/library/services/import_service.dart';
 import 'package:sheetshow/features/library/services/search_service.dart';
@@ -37,6 +40,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // ─── Multi-select ──────────────────────────────────────────────────────────
   final Set<String> _selectedIds = {};
   final Set<String> _filterTags = {};
+  String? _selectedRealbookId;
 
   void _toggleSelect(ScoreModel score) {
     setState(() {
@@ -132,18 +136,38 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ),
       body: Row(
         children: [
-          // Folder tree sidebar
+          // Sidebar: folders + realbooks
           SizedBox(
             width: 220,
-            child: FolderTree(
-              selectedFolderId: _selectedFolderId,
-              onFolderSelected: (id) => setState(() {
-                _selectedFolderId = id;
-                _searchQuery = '';
-                _searchController.clear();
-                _selectedIds.clear();
-                _filterTags.clear();
-              }),
+            child: Column(
+              children: [
+                Expanded(
+                  child: FolderTree(
+                    selectedFolderId:
+                        _selectedRealbookId == null ? _selectedFolderId : null,
+                    onFolderSelected: (id) => setState(() {
+                      _selectedFolderId = id;
+                      _selectedRealbookId = null;
+                      _searchQuery = '';
+                      _searchController.clear();
+                      _selectedIds.clear();
+                      _filterTags.clear();
+                    }),
+                  ),
+                ),
+                const Divider(height: 1),
+                _RealbookSidebar(
+                  selectedRealbookId: _selectedRealbookId,
+                  onRealbookSelected: (id) => setState(() {
+                    _selectedRealbookId = id;
+                    _selectedFolderId = null;
+                    _searchQuery = '';
+                    _searchController.clear();
+                    _selectedIds.clear();
+                    _filterTags.clear();
+                  }),
+                ),
+              ],
             ),
           ),
           const VerticalDivider(width: 1),
@@ -162,7 +186,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   child: StreamBuilder<List<ScoreModel>>(
                     stream: _searchQuery.trim().isNotEmpty
                         ? searchService.searchStream(_searchQuery)
-                        : scoreRepo.watchAll(folderId: _selectedFolderId),
+                        : scoreRepo.watchAll(
+                            folderId: _selectedFolderId,
+                            realbookId: _selectedRealbookId,
+                          ),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
@@ -235,6 +262,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         importProgress: _importProgress,
         onImportFiles: _importFiles,
         onImportFolder: _importFolder,
+        onImportRealbook: _importRealbook,
         onCancel: _isImporting ? () => _cancelToken?.cancel() : null,
       ),
     );
@@ -283,6 +311,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             },
             cancelToken: token,
           );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _importProgress = null;
+          _cancelToken = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _importRealbook() async {
+    setState(() {
+      _importProgress = (0, 1);
+    });
+    try {
+      final result = await ref.read(importServiceProvider).importRealbook(
+        onProgress: (done, total) {
+          if (mounted) setState(() => _importProgress = (done, total));
+        },
+      );
+      if (mounted && result != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Imported "${result.title}" — ${result.scoreCount} scores detected',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -706,13 +768,14 @@ class _EmptyState extends StatelessWidget {
 
 // ─── Import FAB ───────────────────────────────────────────────────────────────
 
-/// A two-button FAB column: "Import folder" (small) above "Import files" (main).
+/// A multi-button FAB column for import actions.
 class _ImportFab extends StatelessWidget {
   const _ImportFab({
     required this.isImporting,
     required this.importProgress,
     required this.onImportFiles,
     required this.onImportFolder,
+    required this.onImportRealbook,
     required this.onCancel,
   });
 
@@ -720,6 +783,7 @@ class _ImportFab extends StatelessWidget {
   final (int, int)? importProgress;
   final VoidCallback onImportFiles;
   final VoidCallback onImportFolder;
+  final VoidCallback onImportRealbook;
   final VoidCallback? onCancel;
 
   @override
@@ -758,6 +822,13 @@ class _ImportFab extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         FloatingActionButton.small(
+          heroTag: 'import_realbook',
+          tooltip: 'Add realbook',
+          onPressed: onImportRealbook,
+          child: const Icon(Icons.menu_book),
+        ),
+        const SizedBox(height: 12),
+        FloatingActionButton.small(
           heroTag: 'import_folder',
           tooltip: 'Import folder',
           onPressed: onImportFolder,
@@ -771,6 +842,69 @@ class _ImportFab extends StatelessWidget {
           label: const Text('Import files'),
         ),
       ],
+    );
+  }
+}
+
+// ─── Realbook sidebar ─────────────────────────────────────────────────────────
+
+class _RealbookSidebar extends ConsumerWidget {
+  const _RealbookSidebar({
+    required this.selectedRealbookId,
+    required this.onRealbookSelected,
+  });
+
+  final String? selectedRealbookId;
+  final void Function(String?) onRealbookSelected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return StreamBuilder<List<RealbookModel>>(
+      stream: ref.watch(realbookRepositoryProvider).watchAll(),
+      builder: (context, snapshot) {
+        final realbooks = snapshot.data ?? [];
+        if (realbooks.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xs,
+              ),
+              child: Text(
+                'Realbooks',
+                style: AppTypography.labelSmall.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            ...realbooks.map(
+              (rb) => ListTile(
+                dense: true,
+                leading: const Icon(Icons.menu_book, size: 20),
+                title: Text(
+                  rb.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall,
+                ),
+                subtitle: Text(
+                  '${rb.scoreCount} scores',
+                  style: AppTypography.labelSmall,
+                ),
+                selected: selectedRealbookId == rb.id,
+                selectedTileColor: colorScheme.primaryContainer,
+                onTap: () => onRealbookSelected(
+                  selectedRealbookId == rb.id ? null : rb.id,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

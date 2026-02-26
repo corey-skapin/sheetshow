@@ -33,20 +33,38 @@ class ScoreRepository {
 
   static const _scoreColumns = '''
     s.id, s.title, s.filename, s.local_file_path, s.total_pages,
-    s.thumbnail_path, s.updated_at, s.realbook_id, s.start_page, s.end_page
+    s.thumbnail_path, s.updated_at, s.realbook_id, s.start_page, s.end_page,
+    (SELECT r.title FROM realbooks r WHERE r.id = s.realbook_id) AS realbook_title
   ''';
 
   /// Reactive stream of all scores, including their effective tags.
   /// When [folderId] is set, returns scores in that folder AND all its
   /// descendant subfolders (recursive).
-  Stream<List<ScoreModel>> watchAll({String? folderId}) {
+  Stream<List<ScoreModel>> watchAll({String? folderId, String? realbookId}) {
     final Set<ResultSetImplementation<dynamic, dynamic>> tables = {
       _db.scores,
       _db.scoreTags,
       _db.folderTags,
       _db.scoreFolderMemberships,
       _db.folders,
+      _db.realbookTags,
+      _db.realbooks,
     };
+    if (realbookId != null) {
+      return _db
+          .customSelect(
+            '''
+      SELECT $_scoreColumns, $_tagsSubquery
+      FROM scores s
+      WHERE s.realbook_id = ?
+      ORDER BY s.start_page ASC
+      ''',
+            variables: [Variable.withString(realbookId)],
+            readsFrom: tables,
+          )
+          .watch()
+          .map((rows) => rows.map(_mapSqlRow).toList());
+    }
     if (folderId == null) {
       return _db
           .customSelect(
@@ -310,6 +328,7 @@ class ScoreRepository {
       realbookId: row.readNullable<String>('realbook_id'),
       startPage: row.readNullable<int>('start_page'),
       endPage: row.readNullable<int>('end_page'),
+      realbookTitle: row.readNullable<String>('realbook_title'),
     );
   }
 }

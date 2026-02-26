@@ -8,10 +8,13 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/services/error_display_service.dart';
+import 'package:sheetshow/features/library/models/realbook_model.dart';
 import 'package:sheetshow/features/library/models/folder_model.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/folder_repository.dart';
+import 'package:sheetshow/features/library/repositories/realbook_repository.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
+import 'package:sheetshow/features/library/services/realbook_indexing_service.dart';
 import 'package:sheetshow/features/library/services/thumbnail_service.dart';
 
 // T036: ImportService — picks PDFs or a folder, registers in DB in-place, triggers thumbnail.
@@ -33,12 +36,16 @@ class ImportService {
     required this.folderRepository,
     required this.thumbnailService,
     required this.clockService,
+    required this.realbookRepository,
+    required this.indexingService,
   });
 
   final ScoreRepository scoreRepository;
   final FolderRepository folderRepository;
   final ThumbnailService thumbnailService;
   final ClockService clockService;
+  final RealbookRepository realbookRepository;
+  final RealbookIndexingService indexingService;
 
   /// Open the system file picker (multi-select), validate, and register
   /// each selected PDF in-place.
@@ -106,6 +113,86 @@ class ImportService {
       done,
       total,
     );
+  }
+
+  /// Open the system file picker for a single PDF, auto-index it as a realbook,
+  /// and create score entries for each detected section.
+  ///
+  /// [onProgress] is called with (currentPage, totalPages) during indexing.
+  Future<RealbookModel?> importRealbook({
+    void Function(int done, int total)? onProgress,
+  }) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return null;
+
+    final pdfPath = result.files.first.path;
+    if (pdfPath == null) return null;
+
+    final sourceFile = File(pdfPath);
+    if (!await sourceFile.exists() || await sourceFile.length() == 0) {
+      throw const InvalidPdfException();
+    }
+
+    int totalPages;
+    try {
+      final doc = await PdfDocument.openFile(pdfPath);
+      totalPages = doc.pages.length;
+      await doc.dispose();
+      if (totalPages == 0) throw const InvalidPdfException();
+    } catch (e) {
+      throw const InvalidPdfException();
+    }
+
+    final realbookId = const Uuid().v4();
+    final now = clockService.now();
+    final filename = path.basename(pdfPath);
+    final title = path.basenameWithoutExtension(pdfPath);
+
+    final realbook = RealbookModel(
+      id: realbookId,
+      title: title,
+      filename: filename,
+      localFilePath: pdfPath,
+      totalPages: totalPages,
+      updatedAt: now,
+    );
+    await realbookRepository.insert(realbook);
+
+    // Auto-index the realbook.
+    final entries = await indexingService.indexRealbook(
+      pdfPath,
+      onProgress: onProgress,
+    );
+
+    // Create score entries for each detected section.
+    for (final entry in entries) {
+      final scoreId = const Uuid().v4();
+      final score = ScoreModel(
+        id: scoreId,
+        title: entry.title,
+        filename: filename,
+        localFilePath: pdfPath,
+        totalPages: entry.endPage - entry.startPage + 1,
+        updatedAt: now,
+        realbookId: realbookId,
+        startPage: entry.startPage,
+        endPage: entry.endPage,
+        realbookTitle: title,
+      );
+      await scoreRepository.insert(score);
+      // Generate thumbnail from the excerpt's first page (0-indexed).
+      unawaited(thumbnailService.generateThumbnail(
+        pdfPath,
+        scoreId,
+        pageIndex: entry.startPage - 1,
+      ));
+    }
+
+    return realbook.copyWith(scoreCount: entries.length);
   }
 
   // ─── Internal ──────────────────────────────────────────────────────────────
@@ -287,5 +374,7 @@ final importServiceProvider = Provider<ImportService>((ref) {
     folderRepository: ref.watch(folderRepositoryProvider),
     thumbnailService: ref.watch(thumbnailServiceProvider),
     clockService: ref.watch(clockServiceProvider),
+    realbookRepository: ref.watch(realbookRepositoryProvider),
+    indexingService: RealbookIndexingService(),
   );
 });

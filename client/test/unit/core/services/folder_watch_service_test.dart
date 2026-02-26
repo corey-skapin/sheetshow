@@ -9,6 +9,7 @@ import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/services/folder_watch_service.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/folder_repository.dart';
+import 'package:sheetshow/features/library/repositories/realbook_repository.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 void main() {
@@ -16,12 +17,14 @@ void main() {
   late AppDatabase db;
   late ScoreRepository scoreRepo;
   late FolderRepository folderRepo;
+  late RealbookRepository realbookRepo;
 
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('watch_svc_test_');
     db = AppDatabase.forTesting(NativeDatabase.memory());
     scoreRepo = ScoreRepository(db, const SystemClockService());
     folderRepo = FolderRepository(db, const SystemClockService());
+    realbookRepo = RealbookRepository(db, const SystemClockService());
   });
 
   tearDown(() async {
@@ -42,6 +45,7 @@ void main() {
       scoreRepository: scoreRepo,
       folderRepository: folderRepo,
       clockService: const SystemClockService(),
+      realbookRepository: realbookRepo,
       fileSystemWatcher: (_) => ctrl.stream,
       pageCountProvider: pageCountProvider ?? (_) async => 10,
     );
@@ -515,6 +519,7 @@ void main() {
         scoreRepository: scoreRepo,
         folderRepository: folderRepo,
         clockService: const SystemClockService(),
+        realbookRepository: realbookRepo,
         fileSystemWatcher: (_) => ctrl.stream,
         pageCountProvider: (_) async => 3,
       );
