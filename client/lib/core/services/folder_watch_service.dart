@@ -94,10 +94,18 @@ class FolderWatchService {
     // Create folders parent-first (shorter absolute path = shallower = parent).
     dirs.sort((a, b) => a.length.compareTo(b.length));
     for (final dirPath in dirs) {
-      await _onDirectoryCreated(dirPath);
+      try {
+        await _onDirectoryCreated(dirPath);
+      } catch (e, st) {
+        _unawaited(Future.error(e, st)); // surface via Flutter error handler
+      }
     }
     for (final pdfPath in pdfs) {
-      await _onPdfCreated(pdfPath);
+      try {
+        await _onPdfCreated(pdfPath);
+      } catch (e, st) {
+        _unawaited(Future.error(e, st));
+      }
     }
   }
 
@@ -226,7 +234,16 @@ class FolderWatchService {
   Future<void> _onPdfCreated(String pdfPath) async {
     final filename = path.basename(pdfPath);
     final existing = await _scoreRepository.getByFilename(filename);
-    if (existing != null) return;
+    if (existing != null) {
+      // Score already exists — ensure it has a membership to this folder
+      // (mirrors ImportService._importSingleFile deduplication behaviour).
+      final dirPath = path.dirname(pdfPath);
+      final folder = await _folderRepository.getByDiskPath(dirPath);
+      if (folder != null) {
+        await _scoreRepository.addToFolder(existing.id, folder.id);
+      }
+      return;
+    }
 
     final pageCount = await _pageCountProvider(pdfPath);
     if (pageCount == null || pageCount == 0) return;
