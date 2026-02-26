@@ -79,7 +79,7 @@ class FolderRepository {
       if (await oldDir.exists()) {
         final parentPath = path.dirname(folder.diskPath!);
         final newDiskPath = path.join(parentPath, name);
-        await oldDir.rename(newDiskPath);
+        final renamedDir = await oldDir.rename(newDiskPath);
         try {
           await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
               .write(FoldersCompanion(
@@ -89,7 +89,7 @@ class FolderRepository {
           ));
         } catch (e) {
           // Rollback the directory rename so filesystem stays consistent.
-          await Directory(newDiskPath).rename(folder.diskPath!);
+          await renamedDir.rename(folder.diskPath!);
           rethrow;
         }
         return;

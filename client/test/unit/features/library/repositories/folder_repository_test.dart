@@ -244,7 +244,7 @@ void main() {
       expect(folder!.updatedAt, equals(fixedTime));
     });
 
-    test('create uses ClockService for timestamps', () async {
+    test('create preserves model timestamps', () async {
       final fixedTime = DateTime(2025, 3, 1);
       final fakeClock = _FakeClockService(fixedTime);
       final clockRepo = FolderRepository(db, fakeClock);

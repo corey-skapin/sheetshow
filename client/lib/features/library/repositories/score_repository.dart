@@ -172,7 +172,7 @@ class ScoreRepository {
         final dir = path.dirname(existing.localFilePath);
         final newFilename = '${score.title}.pdf';
         final newPath = path.join(dir, newFilename);
-        await oldFile.rename(newPath);
+        final renamedFile = await oldFile.rename(newPath);
         try {
           await (_db.update(_db.scores)..where((s) => s.id.equals(score.id)))
               .write(ScoresCompanion(
@@ -185,7 +185,7 @@ class ScoreRepository {
           await _db.rebuildScoreSearch(score.id, score.title, '');
         } catch (e) {
           // Rollback the file rename so filesystem stays consistent with DB.
-          await File(newPath).rename(existing.localFilePath);
+          await renamedFile.rename(existing.localFilePath);
           rethrow;
         }
         return;
