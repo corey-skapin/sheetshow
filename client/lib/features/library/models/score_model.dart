@@ -11,6 +11,10 @@ class ScoreModel {
     this.thumbnailPath,
     required this.updatedAt,
     this.effectiveTags = const [],
+    this.realbookId,
+    this.startPage,
+    this.endPage,
+    this.realbookTitle,
   });
 
   final String id;
@@ -24,6 +28,21 @@ class ScoreModel {
   /// Own tags merged with tags inherited from all folders this score belongs to.
   final List<String> effectiveTags;
 
+  /// If set, this score is an excerpt from a realbook.
+  final String? realbookId;
+
+  /// First page of this score in the realbook PDF (1-indexed).
+  final int? startPage;
+
+  /// Last page of this score in the realbook PDF (1-indexed).
+  final int? endPage;
+
+  /// Denormalized title of the parent realbook for display.
+  final String? realbookTitle;
+
+  /// Whether this score is a realbook excerpt.
+  bool get isRealbookExcerpt => realbookId != null;
+
   ScoreModel copyWith({
     String? id,
     String? title,
@@ -33,6 +52,10 @@ class ScoreModel {
     String? thumbnailPath,
     DateTime? updatedAt,
     List<String>? effectiveTags,
+    String? realbookId,
+    int? startPage,
+    int? endPage,
+    String? realbookTitle,
   }) =>
       ScoreModel(
         id: id ?? this.id,
@@ -43,6 +66,10 @@ class ScoreModel {
         thumbnailPath: thumbnailPath ?? this.thumbnailPath,
         updatedAt: updatedAt ?? this.updatedAt,
         effectiveTags: effectiveTags ?? this.effectiveTags,
+        realbookId: realbookId ?? this.realbookId,
+        startPage: startPage ?? this.startPage,
+        endPage: endPage ?? this.endPage,
+        realbookTitle: realbookTitle ?? this.realbookTitle,
       );
 
   @override

@@ -29,7 +29,7 @@ class ScoreRepository {
 
   static const _scoreColumns = '''
     s.id, s.title, s.filename, s.local_file_path, s.total_pages,
-    s.thumbnail_path, s.updated_at
+    s.thumbnail_path, s.updated_at, s.realbook_id, s.start_page, s.end_page
   ''';
 
   /// Reactive stream of all scores, including their effective tags.
@@ -112,6 +112,9 @@ class ScoreRepository {
             totalPages: score.totalPages,
             thumbnailPath: Value(score.thumbnailPath),
             updatedAt: score.updatedAt,
+            realbookId: Value(score.realbookId),
+            startPage: Value(score.startPage),
+            endPage: Value(score.endPage),
           ),
         );
     if (folderId != null) {
@@ -270,6 +273,9 @@ class ScoreRepository {
         totalPages: row.totalPages,
         thumbnailPath: row.thumbnailPath,
         updatedAt: row.updatedAt,
+        realbookId: row.realbookId,
+        startPage: row.startPage,
+        endPage: row.endPage,
       );
 
   /// Maps a raw SQL QueryRow (from customSelect) to [ScoreModel].
@@ -290,6 +296,9 @@ class ScoreRepository {
       updatedAt:
           DateTime.fromMillisecondsSinceEpoch(row.read<int>('updated_at')),
       effectiveTags: tags,
+      realbookId: row.readNullable<String>('realbook_id'),
+      startPage: row.readNullable<int>('start_page'),
+      endPage: row.readNullable<int>('end_page'),
     );
   }
 }
