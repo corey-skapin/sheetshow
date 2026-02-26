@@ -145,4 +145,98 @@ void main() {
       expect(await repo.getByFilePath('/no/such/path.pdf'), isNull);
     });
   });
+
+  // ─── delete ──────────────────────────────────────────────────────────────────
+
+  group('delete', () {
+    test('removes score from database', () async {
+      await repo.insert(makeScore());
+      await repo.delete('s1');
+      expect(await repo.getById('s1'), isNull);
+    });
+
+    test('does nothing when score does not exist', () async {
+      await expectLater(repo.delete('nonexistent'), completes);
+    });
+  });
+
+  // ─── addToFolder / removeFromFolder ──────────────────────────────────────────
+
+  group('addToFolder and removeFromFolder', () {
+    test('addToFolder creates membership', () async {
+      await db.into(db.folders).insert(FoldersCompanion.insert(
+            id: 'f1',
+            name: 'Jazz',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ));
+      await repo.insert(makeScore());
+      await repo.addToFolder('s1', 'f1');
+
+      final memberships = await db.select(db.scoreFolderMemberships).get();
+      expect(memberships, hasLength(1));
+    });
+
+    test('removeFromFolder removes membership', () async {
+      await db.into(db.folders).insert(FoldersCompanion.insert(
+            id: 'f1',
+            name: 'Jazz',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ));
+      await repo.insert(makeScore());
+      await repo.addToFolder('s1', 'f1');
+      await repo.removeFromFolder('s1', 'f1');
+
+      final memberships = await db.select(db.scoreFolderMemberships).get();
+      expect(memberships, isEmpty);
+    });
+  });
+
+  // ─── setTags / getTags ───────────────────────────────────────────────────────
+
+  group('setTags and getTags', () {
+    test('setTags stores normalised tags', () async {
+      await repo.insert(makeScore());
+      await repo.setTags('s1', ['Jazz', ' Rock ', 'jazz']);
+
+      final tags = await repo.getTags('s1');
+      expect(tags.toSet(), {'jazz', 'rock'});
+    });
+
+    test('setTags replaces existing tags', () async {
+      await repo.insert(makeScore());
+      await repo.setTags('s1', ['Jazz']);
+      await repo.setTags('s1', ['Rock']);
+
+      final tags = await repo.getTags('s1');
+      expect(tags, ['rock']);
+    });
+
+    test('getTags returns empty list when no tags', () async {
+      await repo.insert(makeScore());
+      expect(await repo.getTags('s1'), isEmpty);
+    });
+  });
+
+  // ─── getEffectiveTags ────────────────────────────────────────────────────────
+
+  group('getEffectiveTags', () {
+    test('merges own tags with folder tags', () async {
+      await db.into(db.folders).insert(FoldersCompanion.insert(
+            id: 'f1',
+            name: 'Classical',
+            createdAt: DateTime(2024),
+            updatedAt: DateTime(2024),
+          ));
+      await repo.insert(makeScore(), folderId: 'f1');
+      await repo.setTags('s1', ['solo']);
+      await db.into(db.folderTags).insert(
+            FolderTagsCompanion.insert(folderId: 'f1', tag: 'baroque'),
+          );
+
+      final tags = await repo.getEffectiveTags('s1');
+      expect(tags.toSet(), {'solo', 'baroque'});
+    });
+  });
 }

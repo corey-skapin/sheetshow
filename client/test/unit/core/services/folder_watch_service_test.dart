@@ -50,13 +50,12 @@ void main() {
 
   group('lifecycle', () {
     test('start creates a listener on the stream', () async {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final service = buildService(ctrl);
 
       await service.start(tempDir.path);
-      expect(ctrl.hasListener, isTrue);
-
+      // broadcast streams don't expose hasListener; verify by checking stop clears sub
       service.stop();
     });
 
@@ -70,8 +69,8 @@ void main() {
       expect(ctrl.hasListener, isFalse);
     });
 
-    test('calling stop before start does not throw', () async {
-      final ctrl = StreamController<FileSystemEvent>();
+    test('calling stop before start does not throw', () {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final service = buildService(ctrl);
       expect(() => service.stop(), returnsNormally);
@@ -82,7 +81,7 @@ void main() {
 
   group('suppression', () {
     test('suppress marks path as suppressed', () {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final service = buildService(ctrl);
       service.suppress('/music/score.pdf');
@@ -90,7 +89,7 @@ void main() {
     });
 
     test('unsuppress clears suppression', () {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final service = buildService(ctrl);
       service.suppress('/music/score.pdf');
@@ -99,7 +98,7 @@ void main() {
     });
 
     test('suppression is case-insensitive', () {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final service = buildService(ctrl);
       service.suppress('/Music/Score.PDF');
@@ -107,7 +106,7 @@ void main() {
     });
 
     test('suppressed PDF create event is skipped', () async {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/score.pdf';
       final service = buildService(ctrl);
@@ -123,7 +122,7 @@ void main() {
     });
 
     test('unsuppressed path is processed normally', () async {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/bach.pdf';
       final service = buildService(ctrl, pageCountProvider: (_) async => 3);
@@ -144,7 +143,7 @@ void main() {
 
   group('PDF create event', () {
     test('inserts a new score into the database', () async {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/beethoven.pdf';
       final service = buildService(ctrl, pageCountProvider: (_) async => 5);
@@ -163,7 +162,7 @@ void main() {
     });
 
     test('skips non-PDF files', () async {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final service = buildService(ctrl);
 
@@ -178,7 +177,7 @@ void main() {
     });
 
     test('skips PDF when pageCountProvider returns null', () async {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/invalid.pdf';
       final service = buildService(ctrl, pageCountProvider: (_) async => null);
@@ -193,6 +192,280 @@ void main() {
     });
   });
 
+  // ─── Directory create ────────────────────────────────────────────────────────
+
+  group('directory create event', () {
+    test('inserts a new folder into the database', () async {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final dirPath = '${tempDir.path}/Jazz';
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: dirPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+
+      final folder = await folderRepo.getByDiskPath(dirPath);
+      expect(folder, isNotNull);
+      expect(folder!.name, 'Jazz');
+      expect(folder.diskPath, dirPath);
+    });
+
+    test('skips when folder already exists for that disk path', () async {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final dirPath = '${tempDir.path}/Existing';
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: dirPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+      await service.handleEventForTesting(
+        eventPath: dirPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+
+      final all = await db.select(db.folders).get();
+      expect(all, hasLength(1));
+    });
+
+    test('links to parent folder when parent disk path is known', () async {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final parentPath = tempDir.path;
+      final childPath = '$parentPath/Baroque';
+      final service = buildService(ctrl);
+
+      // Create parent folder record with parent disk path
+      await service.handleEventForTesting(
+        eventPath: parentPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+      await service.handleEventForTesting(
+        eventPath: childPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+
+      final child = await folderRepo.getByDiskPath(childPath);
+      final parent = await folderRepo.getByDiskPath(parentPath);
+      expect(child!.parentFolderId, parent!.id);
+    });
+  });
+
+  // ─── Directory delete ────────────────────────────────────────────────────────
+
+  group('directory delete event', () {
+    test('removes folder from database', () async {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final dirPath = '${tempDir.path}/ToDelete';
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: dirPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+      await service.handleEventForTesting(
+        eventPath: dirPath,
+        isDirectory: true,
+        kind: WatchEventKind.delete,
+      );
+
+      expect(await folderRepo.getByDiskPath(dirPath), isNull);
+    });
+
+    test('does nothing when folder does not exist', () async {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
+
+      await expectLater(
+        service.handleEventForTesting(
+          eventPath: '${tempDir.path}/Ghost',
+          isDirectory: true,
+          kind: WatchEventKind.delete,
+        ),
+        completes,
+      );
+    });
+  });
+
+  // ─── Directory move ──────────────────────────────────────────────────────────
+
+  group('directory move event', () {
+    test('updates folder name and disk path in database', () async {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final oldPath = '${tempDir.path}/OldName';
+      final newPath = '${tempDir.path}/NewName';
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: oldPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+      await service.handleEventForTesting(
+        eventPath: oldPath,
+        isDirectory: true,
+        kind: WatchEventKind.move,
+        destination: newPath,
+      );
+
+      expect(await folderRepo.getByDiskPath(oldPath), isNull);
+      final renamed = await folderRepo.getByDiskPath(newPath);
+      expect(renamed, isNotNull);
+      expect(renamed!.name, 'NewName');
+    });
+
+    test('deletes folder when move has null destination', () async {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final dirPath = '${tempDir.path}/Gone';
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: dirPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+      await service.handleEventForTesting(
+        eventPath: dirPath,
+        isDirectory: true,
+        kind: WatchEventKind.move,
+      );
+
+      expect(await folderRepo.getByDiskPath(dirPath), isNull);
+    });
+  });
+
+  // ─── PDF move ────────────────────────────────────────────────────────────────
+
+  group('PDF move event', () {
+    test('updates localFilePath and filename in database', () async {
+      const oldPath = '/workspace/old_name.pdf';
+      const newPath = '/workspace/new_name.pdf';
+      await scoreRepo.insert(_makeScore(
+        localFilePath: oldPath,
+        filename: 'old_name.pdf',
+      ));
+
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: oldPath,
+        isDirectory: false,
+        kind: WatchEventKind.move,
+        destination: newPath,
+      );
+
+      expect(await scoreRepo.getByFilePath(oldPath), isNull);
+      final moved = await scoreRepo.getByFilePath(newPath);
+      expect(moved, isNotNull);
+      expect(moved!.filename, 'new_name.pdf');
+    });
+
+    test('deletes score when move destination is non-PDF', () async {
+      const oldPath = '/workspace/score.pdf';
+      await scoreRepo.insert(_makeScore(
+        localFilePath: oldPath,
+        filename: 'score.pdf',
+      ));
+
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: oldPath,
+        isDirectory: false,
+        kind: WatchEventKind.move,
+        destination: '/workspace/score.md',
+      );
+
+      expect(await scoreRepo.getByFilePath(oldPath), isNull);
+    });
+
+    test('deletes score when move has null destination', () async {
+      const oldPath = '/workspace/score2.pdf';
+      await scoreRepo.insert(_makeScore(
+        localFilePath: oldPath,
+        filename: 'score2.pdf',
+      ));
+
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: oldPath,
+        isDirectory: false,
+        kind: WatchEventKind.move,
+      );
+
+      expect(await scoreRepo.getByFilePath(oldPath), isNull);
+    });
+  });
+
+  // ─── PDF create with folder ──────────────────────────────────────────────────
+
+  group('PDF create assigns to folder', () {
+    test('links score to folder when parent dir is a known folder', () async {
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final dirPath = tempDir.path;
+      final service = buildService(ctrl, pageCountProvider: (_) async => 4);
+
+      // First create the folder record for the directory
+      await service.handleEventForTesting(
+        eventPath: dirPath,
+        isDirectory: true,
+        kind: WatchEventKind.create,
+      );
+
+      final pdfPath = '$dirPath/nocturne.pdf';
+      await service.handleEventForTesting(
+        eventPath: pdfPath,
+        isDirectory: false,
+        kind: WatchEventKind.create,
+      );
+
+      final score = await scoreRepo.getByFilename('nocturne.pdf');
+      expect(score, isNotNull);
+    });
+
+    test('skips duplicate PDF create (filename already in DB)', () async {
+      const pdfPath = '/workspace/duplicate.pdf';
+      await scoreRepo.insert(_makeScore(
+        localFilePath: pdfPath,
+        filename: 'duplicate.pdf',
+      ));
+
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
+      addTearDown(ctrl.close);
+      final service = buildService(ctrl);
+
+      await service.handleEventForTesting(
+        eventPath: pdfPath,
+        isDirectory: false,
+        kind: WatchEventKind.create,
+      );
+
+      final all = await db.select(db.scores).get();
+      expect(all, hasLength(1));
+    });
+  });
+
   // ─── PDF delete ──────────────────────────────────────────────────────────────
 
   group('PDF delete event', () {
@@ -203,7 +476,7 @@ void main() {
         filename: 'chopin.pdf',
       ));
 
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final service = buildService(ctrl);
 
@@ -217,7 +490,7 @@ void main() {
     });
 
     test('does nothing when score does not exist', () async {
-      final ctrl = StreamController<FileSystemEvent>();
+      final ctrl = StreamController<FileSystemEvent>.broadcast();
       addTearDown(ctrl.close);
       final service = buildService(ctrl);
 

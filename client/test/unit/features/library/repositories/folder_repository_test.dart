@@ -137,4 +137,94 @@ void main() {
       expect(folder.diskPath, newDiskPath);
     });
   });
+
+  // ─── delete ──────────────────────────────────────────────────────────────────
+
+  group('delete', () {
+    test('removes folder from database', () async {
+      await repo.create(makeFolder());
+      await repo.delete('f1');
+      expect(await repo.getById('f1'), isNull);
+    });
+
+    test('does nothing when folder does not exist', () async {
+      await expectLater(repo.delete('nonexistent'), completes);
+    });
+  });
+
+  // ─── reparent ────────────────────────────────────────────────────────────────
+
+  group('reparent', () {
+    test('moves folder to new parent', () async {
+      await repo.create(makeFolder(id: 'parent', name: 'Parent'));
+      await repo.create(makeFolder(id: 'child', name: 'Child'));
+
+      await repo.reparent('child', 'parent');
+
+      final child = await repo.getById('child');
+      expect(child!.parentFolderId, 'parent');
+    });
+
+    test('reparents to root when parentId is null', () async {
+      await repo.create(makeFolder(id: 'root', name: 'Root'));
+      await repo.create(FolderModel(
+          id: 'child',
+          name: 'Child',
+          parentFolderId: 'root',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024)));
+
+      await repo.reparent('child', null);
+
+      final child = await repo.getById('child');
+      expect(child!.parentFolderId, isNull);
+    });
+  });
+
+  // ─── setTags / getTags ───────────────────────────────────────────────────────
+
+  group('setTags and getTags', () {
+    test('setTags stores normalised tags', () async {
+      await repo.create(makeFolder());
+      await repo.setTags('f1', ['Jazz', ' Rock ', 'jazz']);
+
+      final tags = await repo.getTags('f1');
+      expect(tags.toSet(), {'jazz', 'rock'});
+    });
+
+    test('setTags replaces previous tags', () async {
+      await repo.create(makeFolder());
+      await repo.setTags('f1', ['Jazz']);
+      await repo.setTags('f1', ['Rock']);
+
+      final tags = await repo.getTags('f1');
+      expect(tags, ['rock']);
+    });
+
+    test('getTags returns empty list when no tags set', () async {
+      await repo.create(makeFolder());
+      expect(await repo.getTags('f1'), isEmpty);
+    });
+  });
+
+  // ─── getDepth ────────────────────────────────────────────────────────────────
+
+  group('getDepth', () {
+    test('returns 0 for a root folder', () async {
+      await repo.create(makeFolder());
+      expect(await repo.getDepth('f1'), 0);
+    });
+
+    test('returns 1 for a direct child', () async {
+      await repo.create(makeFolder(id: 'root', name: 'Root'));
+      await repo.create(FolderModel(
+          id: 'child',
+          name: 'Child',
+          parentFolderId: 'root',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024)));
+
+      expect(await repo.getDepth('child'), 1);
+    });
+  });
 }

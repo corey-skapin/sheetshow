@@ -25,7 +25,7 @@ class WorkspaceService {
   static const String _dbFileName = 'data.db';
 
   Future<Directory> _baseDir() async {
-    if (_overrideBaseDir != null) return Directory(_overrideBaseDir!);
+    if (_overrideBaseDir != null) return Directory(_overrideBaseDir);
     return getApplicationDocumentsDirectory();
   }
 

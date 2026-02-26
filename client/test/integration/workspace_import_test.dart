@@ -46,7 +46,7 @@ void main() {
     final repo1 = ScoreRepository(db1);
 
     await repo1.insert(
-      const ScoreModel(
+      ScoreModel(
         id: 'score-1',
         title: 'Moonlight Sonata',
         filename: 'moonlight.pdf',
@@ -92,7 +92,7 @@ void main() {
     final repo = ScoreRepository(db);
 
     await repo.insert(
-      const ScoreModel(
+      ScoreModel(
         id: 'test-score',
         title: 'Test Score',
         filename: 'test.pdf',

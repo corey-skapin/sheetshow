@@ -132,9 +132,11 @@ class FolderWatchService {
         kind: WatchEventKind.create,
       );
     } else if (event is FileSystemDeleteEvent) {
+      // isDirectory is deprecated (always false on Windows for delete events).
+      // Infer: no .pdf extension → treat as potential directory deletion.
       await _handleEvent(
         eventPath: event.path,
-        isDirectory: event.isDirectory,
+        isDirectory: !_isPdf(event.path),
         kind: WatchEventKind.delete,
       );
     } else if (event is FileSystemMoveEvent) {

@@ -25,8 +25,8 @@ void main() {
 
     test('returns path when config file is present', () async {
       final configFile = File(path.join(tempDir.path, 'sheetshow_config.json'));
-      await configFile.writeAsString(
-          jsonEncode({'workspacePath': '/music/scores'}));
+      await configFile
+          .writeAsString(jsonEncode({'workspacePath': '/music/scores'}));
 
       expect(await sut.getWorkspacePath(), '/music/scores');
     });
