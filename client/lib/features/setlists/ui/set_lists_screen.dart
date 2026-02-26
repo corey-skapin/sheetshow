@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 import 'package:sheetshow/features/setlists/repositories/set_list_repository.dart';
 
@@ -85,7 +86,7 @@ class SetListsScreen extends ConsumerWidget {
     );
     if (name == null || name.isEmpty) return;
 
-    final now = DateTime.now();
+    final now = ref.read(clockServiceProvider).now();
     await ref.read(setListRepositoryProvider).create(
           SetListModel(
             id: const Uuid().v4(),
