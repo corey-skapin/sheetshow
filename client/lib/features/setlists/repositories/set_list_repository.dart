@@ -2,14 +2,16 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/setlists/models/set_list_entry_model.dart';
 import 'package:sheetshow/features/setlists/models/set_list_model.dart';
 
 /// Client-side set list repository with ordered entry management.
 class SetListRepository {
-  SetListRepository(this._db);
+  SetListRepository(this._db, this._clock);
 
   final AppDatabase _db;
+  final ClockService _clock;
 
   // ─── Watch ────────────────────────────────────────────────────────────────
 
@@ -48,7 +50,7 @@ class SetListRepository {
     await (_db.update(_db.setLists)..where((sl) => sl.id.equals(id)))
         .write(SetListsCompanion(
       name: Value(name),
-      updatedAt: Value(DateTime.now()),
+      updatedAt: Value(_clock.now()),
     ));
   }
 
@@ -58,7 +60,7 @@ class SetListRepository {
 
   Future<void> addEntry(String setListId, String scoreId, {String? id}) async {
     final entryId = id ?? const Uuid().v4();
-    final now = DateTime.now();
+    final now = _clock.now();
     await _db.transaction(() async {
       // Compute next orderIndex in-DB to avoid a round-trip SELECT.
       await _db.customStatement(
@@ -133,11 +135,14 @@ class SetListRepository {
 
   Future<void> _touchSetList(String id) async {
     await (_db.update(_db.setLists)..where((sl) => sl.id.equals(id)))
-        .write(SetListsCompanion(updatedAt: Value(DateTime.now())));
+        .write(SetListsCompanion(updatedAt: Value(_clock.now())));
   }
 }
 
 /// Riverpod provider for [SetListRepository].
 final setListRepositoryProvider = Provider<SetListRepository>((ref) {
-  return SetListRepository(ref.watch(databaseProvider).requireValue);
+  return SetListRepository(
+    ref.watch(databaseProvider).requireValue,
+    ref.watch(clockServiceProvider),
+  );
 });
