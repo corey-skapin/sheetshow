@@ -211,7 +211,7 @@ void main() {
       final folder = await folderRepo.getByDiskPath(dirPath);
       expect(folder, isNotNull);
       expect(folder!.name, 'Jazz');
-      expect(folder.diskPath, dirPath);
+      expect(folder.diskPath, p.normalize(dirPath));
     });
 
     test('skips when folder already exists for that disk path', () async {

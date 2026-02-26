@@ -28,9 +28,13 @@ class FolderRepository {
   }
 
   /// Returns the folder whose [FolderModel.diskPath] matches [diskPath].
+  ///
+  /// Paths are normalized before comparison so `/` vs `\` and trailing-slash
+  /// differences do not cause mismatches.
   Future<FolderModel?> getByDiskPath(String diskPath) async {
+    final normalised = path.normalize(diskPath);
     final row = await (_db.select(_db.folders)
-          ..where((f) => f.folderPath.equals(diskPath)))
+          ..where((f) => f.folderPath.equals(normalised)))
         .getSingleOrNull();
     return row == null ? null : _mapRow(row);
   }
@@ -54,7 +58,9 @@ class FolderRepository {
             parentFolderId: Value(folder.parentFolderId),
             createdAt: folder.createdAt,
             updatedAt: folder.updatedAt,
-            folderPath: Value(folder.diskPath),
+            folderPath: Value(folder.diskPath != null
+                ? path.normalize(folder.diskPath!)
+                : null),
           ),
         );
   }
@@ -112,7 +118,7 @@ class FolderRepository {
     await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
         .write(FoldersCompanion(
       name: Value(newName),
-      folderPath: Value(newDiskPath),
+      folderPath: Value(path.normalize(newDiskPath)),
       updatedAt: Value(DateTime.now()),
     ));
   }

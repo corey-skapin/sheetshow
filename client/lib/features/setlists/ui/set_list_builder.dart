@@ -450,6 +450,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
                         subtitle: const Text('Tap × to remove from set list'),
                         trailing: IconButton(
                           icon: const Icon(Icons.close),
+                          tooltip: 'Remove from set list',
                           onPressed: () => _removeEntry(entry.id),
                         ),
                       ),
@@ -509,6 +510,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
                           ),
                           IconButton(
                             icon: const Icon(Icons.close),
+                            tooltip: 'Remove from set list',
                             onPressed: () => _removeEntry(entry.id),
                           ),
                         ],
@@ -646,6 +648,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
                   subtitle: Text('${score.totalPages} pages'),
                   trailing: IconButton(
                     icon: const Icon(Icons.add_circle_outline),
+                    tooltip: 'Add to set list',
                     onPressed: () => _addScore(score),
                   ),
                 ),

@@ -35,6 +35,7 @@ class SetListsScreen extends ConsumerWidget {
                 title: Text(sl.name),
                 subtitle: Text('${sl.entries.length} scores'),
                 trailing: PopupMenuButton<String>(
+                  tooltip: 'Set list options',
                   onSelected: (v) {
                     if (v == 'rename') _rename(context, ref, sl);
                     if (v == 'delete') _delete(context, ref, sl);
@@ -51,6 +52,7 @@ class SetListsScreen extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
+        tooltip: 'Create set list',
         onPressed: () => _create(context, ref),
         child: const Icon(Icons.add),
       ),

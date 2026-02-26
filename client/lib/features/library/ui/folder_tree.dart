@@ -70,7 +70,10 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
         TextButton.icon(
           onPressed: _createFolder,
           icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-          label: const Text('New Folder'),
+          label: const Tooltip(
+            message: 'Create a new root folder',
+            child: Text('New Folder'),
+          ),
         ),
       ],
     );
@@ -394,6 +397,7 @@ class _FolderNode extends StatelessWidget {
                     onNewSubfolder != null ||
                     onEditTags != null)
                 ? PopupMenuButton<String>(
+                    tooltip: 'Folder options',
                     iconSize: 16,
                     onSelected: (v) {
                       if (v == 'rename') onRename?.call();

@@ -224,10 +224,12 @@ class _PerformanceOverlay extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+            tooltip: 'Previous score',
             onPressed: currentIndex > 0 ? onPrevious : null,
           ),
           IconButton(
             icon: const Icon(Icons.arrow_forward_ios, color: Colors.white),
+            tooltip: 'Next score',
             onPressed: currentIndex < totalCount - 1 ? onNext : null,
           ),
         ],

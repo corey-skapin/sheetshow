@@ -116,6 +116,7 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
               ),
               IconButton(
                 icon: const Icon(Icons.add),
+                tooltip: 'Add tag',
                 onPressed: () => _addTag(_tagController.text),
               ),
             ],

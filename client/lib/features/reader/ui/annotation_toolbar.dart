@@ -93,6 +93,7 @@ class AnnotationToolbar extends ConsumerWidget {
             label: 'Undo last stroke',
             child: IconButton(
               icon: const Icon(Icons.undo, color: Colors.white),
+              tooltip: 'Undo last stroke',
               onPressed: () => ref
                   .read(annotationServiceProvider(
                     (scoreId: scoreId, pageNumber: pageNumber),
@@ -105,6 +106,7 @@ class AnnotationToolbar extends ConsumerWidget {
             label: 'Clear all annotations',
             child: IconButton(
               icon: const Icon(Icons.delete_sweep, color: Colors.white),
+              tooltip: 'Clear all annotations',
               onPressed: () => _confirmClearAll(context, ref),
             ),
           ),
@@ -204,16 +206,19 @@ class _ToolButton extends StatelessWidget {
     return Semantics(
       label: '$label tool${isActive ? ' (active)' : ''}',
       button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      child: Tooltip(
+        message: '$label tool',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: isActive ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
         ),
       ),
     );
