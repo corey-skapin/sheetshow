@@ -46,20 +46,8 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   # Mocking
   mockito: ^5.4.4
-  msix: ^3.16.13
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
-
-msix_config:
-  display_name: SheetShow
-  publisher_display_name: Corey Skapin
-  identity_name: CoreySkapin.SheetShow
-  msix_version: 1.0.0.0
-  logo_path: windows/runner/resources/app_icon.ico
-  capabilities: removableStorage
-  languages: en-us
-  output_name: SheetShow
-  install_certificate: false
