@@ -35,8 +35,7 @@ void main() {
     String filename = 'Moonlight Sonata.pdf',
     String? localFilePath,
   }) {
-    final filePath =
-        localFilePath ?? path.join(tempDir.path, filename);
+    final filePath = localFilePath ?? path.join(tempDir.path, filename);
     return ScoreModel(
       id: id,
       title: title,
@@ -95,8 +94,7 @@ void main() {
 
       final updated = await repo.getById('s1');
       expect(updated!.filename, 'Ode to Joy.pdf');
-      expect(
-          updated.localFilePath, path.join(tempDir.path, 'Ode to Joy.pdf'));
+      expect(updated.localFilePath, path.join(tempDir.path, 'Ode to Joy.pdf'));
     });
 
     test('only updates DB when file does not exist on disk', () async {
@@ -123,8 +121,7 @@ void main() {
     test('updates local_file_path and filename in DB', () async {
       await repo.insert(makeScore());
 
-      await repo.updateFilePath(
-          's1', '/new/path/renamed.pdf', 'renamed.pdf');
+      await repo.updateFilePath('s1', '/new/path/renamed.pdf', 'renamed.pdf');
 
       final updated = await repo.getById('s1');
       expect(updated!.localFilePath, '/new/path/renamed.pdf');

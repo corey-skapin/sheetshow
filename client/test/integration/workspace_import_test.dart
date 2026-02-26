@@ -38,8 +38,7 @@ void main() {
     final dbPath = wsService.getDatabasePath(workspaceDir.path);
 
     // Verify the .sheetshow directory was created
-    final sheetshowDir =
-        Directory(path.join(workspaceDir.path, '.sheetshow'));
+    final sheetshowDir = Directory(path.join(workspaceDir.path, '.sheetshow'));
     expect(await sheetshowDir.exists(), isTrue);
 
     // Open first database instance and insert a score

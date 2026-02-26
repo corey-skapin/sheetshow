@@ -181,8 +181,7 @@ void main() {
       final ctrl = StreamController<FileSystemEvent>();
       addTearDown(ctrl.close);
       final pdfPath = '${tempDir.path}/invalid.pdf';
-      final service =
-          buildService(ctrl, pageCountProvider: (_) async => null);
+      final service = buildService(ctrl, pageCountProvider: (_) async => null);
 
       await service.handleEventForTesting(
         eventPath: pdfPath,

@@ -155,33 +155,32 @@ class FolderWatchService {
   }) async {
     if (_suppressedPaths.contains(eventPath.toLowerCase())) return;
 
-    switch (kind) {
-      case WatchEventKind.create:
-        if (isDirectory) {
-          await _onDirectoryCreated(eventPath);
-        } else if (_isPdf(eventPath)) {
-          await _onPdfCreated(eventPath);
-        }
-      case WatchEventKind.delete:
-        if (isDirectory) {
+    if (kind == WatchEventKind.create) {
+      if (isDirectory) {
+        await _onDirectoryCreated(eventPath);
+      } else if (_isPdf(eventPath)) {
+        await _onPdfCreated(eventPath);
+      }
+    } else if (kind == WatchEventKind.delete) {
+      if (isDirectory) {
+        await _onDirectoryDeleted(eventPath);
+      } else if (_isPdf(eventPath)) {
+        await _onPdfDeleted(eventPath);
+      }
+    } else if (kind == WatchEventKind.move) {
+      if (isDirectory) {
+        if (destination != null) {
+          await _onDirectoryMoved(eventPath, destination);
+        } else {
           await _onDirectoryDeleted(eventPath);
-        } else if (_isPdf(eventPath)) {
+        }
+      } else if (_isPdf(eventPath)) {
+        if (destination != null && _isPdf(destination)) {
+          await _onPdfMoved(eventPath, destination);
+        } else {
           await _onPdfDeleted(eventPath);
         }
-      case WatchEventKind.move:
-        if (isDirectory) {
-          if (destination != null) {
-            await _onDirectoryMoved(eventPath, destination);
-          } else {
-            await _onDirectoryDeleted(eventPath);
-          }
-        } else if (_isPdf(eventPath)) {
-          if (destination != null && _isPdf(destination)) {
-            await _onPdfMoved(eventPath, destination);
-          } else {
-            await _onPdfDeleted(eventPath);
-          }
-        }
+      }
     }
   }
 

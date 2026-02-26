@@ -24,25 +24,22 @@ void main() {
     });
 
     test('returns path when config file is present', () async {
-      final configFile =
-          File(path.join(tempDir.path, 'sheetshow_config.json'));
-      await configFile
-          .writeAsString(jsonEncode({'workspacePath': '/music/scores'}));
+      final configFile = File(path.join(tempDir.path, 'sheetshow_config.json'));
+      await configFile.writeAsString(
+          jsonEncode({'workspacePath': '/music/scores'}));
 
       expect(await sut.getWorkspacePath(), '/music/scores');
     });
 
     test('returns null when config file contains invalid JSON', () async {
-      final configFile =
-          File(path.join(tempDir.path, 'sheetshow_config.json'));
+      final configFile = File(path.join(tempDir.path, 'sheetshow_config.json'));
       await configFile.writeAsString('not json');
 
       expect(await sut.getWorkspacePath(), isNull);
     });
 
     test('returns null when workspacePath key is absent', () async {
-      final configFile =
-          File(path.join(tempDir.path, 'sheetshow_config.json'));
+      final configFile = File(path.join(tempDir.path, 'sheetshow_config.json'));
       await configFile.writeAsString(jsonEncode({'other': 'value'}));
 
       expect(await sut.getWorkspacePath(), isNull);
@@ -53,8 +50,7 @@ void main() {
     test('writes correct JSON to config file', () async {
       await sut.setWorkspacePath('/my/scores');
 
-      final configFile =
-          File(path.join(tempDir.path, 'sheetshow_config.json'));
+      final configFile = File(path.join(tempDir.path, 'sheetshow_config.json'));
       expect(await configFile.exists(), isTrue);
       final json =
           jsonDecode(await configFile.readAsString()) as Map<String, dynamic>;
