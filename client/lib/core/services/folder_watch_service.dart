@@ -308,5 +308,22 @@ final folderWatchServiceProvider =
 });
 
 void _unawaited(Future<void> future) {
-  future.catchError((Object _) {});
+  future.catchError((Object error, StackTrace stackTrace) {
+    // Log in debug builds to aid diagnosis of unexpected background errors.
+    assert(() {
+      debugPrint('Unhandled error in _unawaited future: $error');
+      debugPrint('Stack trace:\n$stackTrace');
+      return true;
+    }());
+
+    // Let Flutter's error handling surface the problem instead of hiding it.
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'folder_watch_service',
+        context: ErrorDescription('While running an unawaited future'),
+      ),
+    );
+  });
 }
