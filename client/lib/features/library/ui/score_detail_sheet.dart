@@ -221,6 +221,7 @@ class _ScoreDetailSheetState extends ConsumerState<ScoreDetailSheet> {
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(hintText: 'Enter title'),
+          onSubmitted: (v) => Navigator.of(context).pop(v),
         ),
         actions: [
           TextButton(

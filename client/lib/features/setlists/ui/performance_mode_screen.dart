@@ -246,26 +246,23 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
                       ),
                     ),
 
-                    // Sidebar toggle button (always visible, top-right)
+                    // Sidebar toggle button (below appbar, top-right)
                     Positioned(
-                      top: 0,
-                      right: 0,
-                      child: SafeArea(
-                        child: IconButton(
-                          icon: Icon(
-                            _sidebarVisible
-                                ? Icons.playlist_remove
-                                : Icons.playlist_play,
-                            color: Colors.white,
-                          ),
-                          tooltip: _sidebarVisible
-                              ? 'Hide set list'
-                              : 'Show set list',
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.black45,
-                          ),
-                          onPressed: _toggleSidebar,
+                      top: kToolbarHeight + MediaQuery.of(context).padding.top,
+                      right: 8,
+                      child: IconButton(
+                        icon: Icon(
+                          _sidebarVisible
+                              ? Icons.playlist_remove
+                              : Icons.playlist_play,
+                          color: Colors.white,
                         ),
+                        tooltip:
+                            _sidebarVisible ? 'Hide set list' : 'Show set list',
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black45,
+                        ),
+                        onPressed: _toggleSidebar,
                       ),
                     ),
 

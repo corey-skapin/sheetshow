@@ -69,6 +69,7 @@ class SetListsScreen extends ConsumerWidget {
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(hintText: 'Set list name'),
+          onSubmitted: (v) => Navigator.of(context).pop(v),
         ),
         actions: [
           TextButton(
@@ -103,7 +104,11 @@ class SetListsScreen extends ConsumerWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Rename Set List'),
-        content: TextField(controller: controller, autofocus: true),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          onSubmitted: (v) => Navigator.of(context).pop(v),
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(context).pop(),

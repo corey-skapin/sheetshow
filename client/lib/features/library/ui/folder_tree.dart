@@ -272,6 +272,7 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(hintText: 'Enter folder name'),
+          onSubmitted: (v) => Navigator.of(context).pop(v),
         ),
         actions: [
           TextButton(
