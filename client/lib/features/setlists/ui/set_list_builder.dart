@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/services/search_service.dart';
@@ -148,7 +149,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
       setListId: widget.setListId,
       scoreId: score.id,
       orderIndex: _entries.length,
-      addedAt: DateTime.now(),
+      addedAt: ref.read(clockServiceProvider).now(),
     );
     setState(() => _entries = [..._entries, newEntry]);
     _scrollToBottom();
@@ -219,7 +220,7 @@ class _SetListBuilderScreenState extends ConsumerState<SetListBuilderScreen>
       setListId: widget.setListId,
       scoreId: score.id,
       orderIndex: clampedIndex,
-      addedAt: DateTime.now(),
+      addedAt: ref.read(clockServiceProvider).now(),
     );
     final entries = List.of(_entries)..insert(clampedIndex, newEntry);
     setState(() {

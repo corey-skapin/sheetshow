@@ -15,26 +15,6 @@ class AppException implements Exception {
   String toString() => 'AppException($code): $message';
 }
 
-/// Network connectivity exception.
-class NetworkException extends AppException {
-  const NetworkException(super.message, {super.cause})
-      : super(code: 'network_error');
-}
-
-/// HTTP validation error (422 or 400 from server).
-class ValidationException extends AppException {
-  const ValidationException(super.message) : super(code: 'validation_error');
-}
-
-/// Storage quota exceeded (server-side).
-class QuotaExceededException extends AppException {
-  const QuotaExceededException()
-      : super(
-          'Cloud storage is full. Free up space to continue syncing.',
-          code: 'quota_exceeded',
-        );
-}
-
 /// Local storage is too full to import the file.
 class LocalStorageFullException extends AppException {
   const LocalStorageFullException()
@@ -51,11 +31,6 @@ class InvalidPdfException extends AppException {
           "This file couldn't be imported — it may be corrupted or password-protected.",
           code: 'invalid_pdf',
         );
-}
-
-/// Authentication failure.
-class AuthException extends AppException {
-  const AuthException(super.message) : super(code: 'auth_error');
 }
 
 /// Folder depth limit exceeded.
@@ -84,27 +59,12 @@ class ErrorDisplayService {
 
     final message = error.toString().toLowerCase();
 
-    if (message.contains('socket') ||
-        message.contains('connection') ||
-        message.contains('network') ||
-        message.contains('timeout')) {
-      return 'Unable to connect. Please check your internet connection and try again.';
-    }
-
-    if (message.contains('401') || message.contains('unauthorized')) {
-      return 'Your session has expired. Please log in again.';
-    }
-
-    if (message.contains('403') || message.contains('forbidden')) {
-      return 'You do not have permission to perform this action.';
-    }
-
-    if (message.contains('404') || message.contains('not found')) {
-      return 'The requested item was not found. It may have been deleted.';
-    }
-
     if (message.contains('storage') || message.contains('disk')) {
       return 'Not enough storage space. Please free up space and try again.';
+    }
+
+    if (message.contains('permission') || message.contains('access denied')) {
+      return 'Permission denied. Check that SheetShow can access this folder.';
     }
 
     return 'Something went wrong. Please try again.';

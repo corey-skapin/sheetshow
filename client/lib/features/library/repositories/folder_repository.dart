@@ -5,14 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:sheetshow/core/constants/app_constants.dart';
 import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/services/error_display_service.dart';
 import 'package:sheetshow/features/library/models/folder_model.dart';
 
 /// Client-side folder repository with depth enforcement.
 class FolderRepository {
-  FolderRepository(this._db);
+  FolderRepository(this._db, this._clock);
 
   final AppDatabase _db;
+  final ClockService _clock;
 
   /// Reactive stream of all folders.
   Stream<List<FolderModel>> watchAll() {
@@ -77,13 +79,19 @@ class FolderRepository {
       if (await oldDir.exists()) {
         final parentPath = path.dirname(folder.diskPath!);
         final newDiskPath = path.join(parentPath, name);
-        await oldDir.rename(newDiskPath);
-        await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
-            .write(FoldersCompanion(
-          name: Value(name),
-          folderPath: Value(newDiskPath),
-          updatedAt: Value(DateTime.now()),
-        ));
+        final renamedDir = await oldDir.rename(newDiskPath);
+        try {
+          await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
+              .write(FoldersCompanion(
+            name: Value(name),
+            folderPath: Value(newDiskPath),
+            updatedAt: Value(_clock.now()),
+          ));
+        } catch (e) {
+          // Rollback the directory rename so filesystem stays consistent.
+          await renamedDir.rename(folder.diskPath!);
+          rethrow;
+        }
         return;
       }
     }
@@ -91,7 +99,7 @@ class FolderRepository {
     await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
         .write(FoldersCompanion(
       name: Value(name),
-      updatedAt: Value(DateTime.now()),
+      updatedAt: Value(_clock.now()),
     ));
   }
 
@@ -103,7 +111,7 @@ class FolderRepository {
     await (_db.update(_db.folders)..where((f) => f.id.equals(id)))
         .write(FoldersCompanion(
       parentFolderId: Value(parentId),
-      updatedAt: Value(DateTime.now()),
+      updatedAt: Value(_clock.now()),
     ));
   }
 
@@ -119,7 +127,7 @@ class FolderRepository {
         .write(FoldersCompanion(
       name: Value(newName),
       folderPath: Value(path.normalize(newDiskPath)),
-      updatedAt: Value(DateTime.now()),
+      updatedAt: Value(_clock.now()),
     ));
   }
 
@@ -204,5 +212,8 @@ class FolderRepository {
 
 /// Riverpod provider for [FolderRepository].
 final folderRepositoryProvider = Provider<FolderRepository>((ref) {
-  return FolderRepository(ref.watch(databaseProvider).requireValue);
+  return FolderRepository(
+    ref.watch(databaseProvider).requireValue,
+    ref.watch(clockServiceProvider),
+  );
 });

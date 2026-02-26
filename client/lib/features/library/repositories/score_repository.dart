@@ -4,13 +4,15 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 
 /// Client-side score repository backed by Drift/SQLite.
 class ScoreRepository {
-  ScoreRepository(this._db);
+  ScoreRepository(this._db, this._clock);
 
   final AppDatabase _db;
+  final ClockService _clock;
 
   // ─── Watch ────────────────────────────────────────────────────────────────
 
@@ -170,16 +172,22 @@ class ScoreRepository {
         final dir = path.dirname(existing.localFilePath);
         final newFilename = '${score.title}.pdf';
         final newPath = path.join(dir, newFilename);
-        await oldFile.rename(newPath);
-        await (_db.update(_db.scores)..where((s) => s.id.equals(score.id)))
-            .write(ScoresCompanion(
-          title: Value(score.title),
-          filename: Value(newFilename),
-          localFilePath: Value(newPath),
-          thumbnailPath: Value(score.thumbnailPath),
-          updatedAt: Value(DateTime.now()),
-        ));
-        await _db.rebuildScoreSearch(score.id, score.title, '');
+        final renamedFile = await oldFile.rename(newPath);
+        try {
+          await (_db.update(_db.scores)..where((s) => s.id.equals(score.id)))
+              .write(ScoresCompanion(
+            title: Value(score.title),
+            filename: Value(newFilename),
+            localFilePath: Value(newPath),
+            thumbnailPath: Value(score.thumbnailPath),
+            updatedAt: Value(_clock.now()),
+          ));
+          await _db.rebuildScoreSearch(score.id, score.title, '');
+        } catch (e) {
+          // Rollback the file rename so filesystem stays consistent with DB.
+          await renamedFile.rename(existing.localFilePath);
+          rethrow;
+        }
         return;
       }
     }
@@ -188,7 +196,7 @@ class ScoreRepository {
         .write(ScoresCompanion(
       title: Value(score.title),
       thumbnailPath: Value(score.thumbnailPath),
-      updatedAt: Value(DateTime.now()),
+      updatedAt: Value(_clock.now()),
     ));
     await _db.rebuildScoreSearch(score.id, score.title, '');
   }
@@ -202,7 +210,7 @@ class ScoreRepository {
         .write(ScoresCompanion(
       localFilePath: Value(newPath),
       filename: Value(newFilename),
-      updatedAt: Value(DateTime.now()),
+      updatedAt: Value(_clock.now()),
     ));
   }
 
@@ -241,7 +249,7 @@ class ScoreRepository {
       }
 
       await (_db.update(_db.scores)..where((s) => s.id.equals(scoreId)))
-          .write(ScoresCompanion(updatedAt: Value(DateTime.now())));
+          .write(ScoresCompanion(updatedAt: Value(_clock.now())));
     });
   }
 
@@ -289,5 +297,6 @@ class ScoreRepository {
 /// Riverpod provider for [ScoreRepository].
 final scoreRepositoryProvider = Provider<ScoreRepository>((ref) {
   final db = ref.watch(databaseProvider).requireValue;
-  return ScoreRepository(db);
+  final clock = ref.watch(clockServiceProvider);
+  return ScoreRepository(db, clock);
 });

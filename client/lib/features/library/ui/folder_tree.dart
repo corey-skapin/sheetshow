@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/core/services/error_display_service.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
 import 'package:sheetshow/core/theme/app_typography.dart';
@@ -153,13 +154,14 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
   Future<void> _createFolder() async {
     final name = await _promptFolderName(context, 'New Folder');
     if (name == null || name.isEmpty) return;
+    final now = ref.read(clockServiceProvider).now();
     try {
       await ref.read(folderRepositoryProvider).create(
             FolderModel(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              id: now.millisecondsSinceEpoch.toString(),
               name: name,
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
+              createdAt: now,
+              updatedAt: now,
             ),
           );
     } on DuplicateFolderNameException catch (e) {
@@ -173,13 +175,14 @@ class _FolderTreeState extends ConsumerState<FolderTree> {
   Future<void> _createSubfolder(FolderModel parent) async {
     final name = await _promptFolderName(context, 'New Folder');
     if (name == null || name.isEmpty) return;
+    final now = ref.read(clockServiceProvider).now();
     await ref.read(folderRepositoryProvider).create(
           FolderModel(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            id: now.millisecondsSinceEpoch.toString(),
             name: name,
             parentFolderId: parent.id,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
+            createdAt: now,
+            updatedAt: now,
           ),
         );
     setState(() => _expanded.add(parent.id));

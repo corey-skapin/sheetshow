@@ -1,13 +1,15 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/reader/models/annotation_layer.dart';
 
 /// Client-side annotation repository storing ink strokes per page.
 class AnnotationRepository {
-  AnnotationRepository(this._db);
+  AnnotationRepository(this._db, this._clock);
 
   final AppDatabase _db;
+  final ClockService _clock;
 
   /// Get the annotation layer for a specific score page, or null if not exists.
   Future<AnnotationLayer?> getLayer(String scoreId, int pageNumber) async {
@@ -59,7 +61,7 @@ class AnnotationRepository {
               a.scoreId.equals(scoreId) & a.pageNumber.equals(pageNumber)))
         .write(AnnotationLayersCompanion(
       strokesJson: const Value('[]'),
-      updatedAt: Value(DateTime.now()),
+      updatedAt: Value(_clock.now()),
     ));
   }
 
@@ -74,5 +76,8 @@ class AnnotationRepository {
 
 /// Riverpod provider for [AnnotationRepository].
 final annotationRepositoryProvider = Provider<AnnotationRepository>((ref) {
-  return AnnotationRepository(ref.watch(databaseProvider).requireValue);
+  return AnnotationRepository(
+    ref.watch(databaseProvider).requireValue,
+    ref.watch(clockServiceProvider),
+  );
 });

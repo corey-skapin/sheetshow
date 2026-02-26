@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/library/models/folder_model.dart';
 import 'package:sheetshow/features/library/repositories/folder_repository.dart';
 
@@ -15,7 +16,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('folder_repo_test_');
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    repo = FolderRepository(db);
+    repo = FolderRepository(db, const SystemClockService());
   });
 
   tearDown(() async {
@@ -227,4 +228,40 @@ void main() {
       expect(await repo.getDepth('child'), 1);
     });
   });
+
+  // ─── ClockService integration ───────────────────────────────────────────────
+
+  group('ClockService', () {
+    test('rename uses ClockService for updatedAt timestamp', () async {
+      final fixedTime = DateTime(2025, 6, 15, 12, 0);
+      final fakeClock = _FakeClockService(fixedTime);
+      final clockRepo = FolderRepository(db, fakeClock);
+
+      await clockRepo.create(makeFolder());
+      await clockRepo.rename('f1', 'Romantic');
+
+      final folder = await clockRepo.getById('f1');
+      expect(folder!.updatedAt, equals(fixedTime));
+    });
+
+    test('create preserves model timestamps', () async {
+      final fixedTime = DateTime(2025, 3, 1);
+      final fakeClock = _FakeClockService(fixedTime);
+      final clockRepo = FolderRepository(db, fakeClock);
+
+      await clockRepo.create(makeFolder());
+
+      final folder = await clockRepo.getById('f1');
+      expect(folder!.createdAt, equals(DateTime(2024)));
+      expect(folder.updatedAt, equals(DateTime(2024)));
+    });
+  });
+}
+
+class _FakeClockService implements ClockService {
+  _FakeClockService(this._time);
+  final DateTime _time;
+
+  @override
+  DateTime now() => _time;
 }

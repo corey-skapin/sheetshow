@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sheetshow/core/models/enums.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/reader/models/annotation_layer.dart';
 import 'package:sheetshow/features/reader/models/ink_stroke.dart';
 import 'package:sheetshow/features/reader/models/tool_settings.dart';
@@ -119,7 +120,7 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay> {
       strokeWidth: settings.strokeWidth,
       opacity: settings.opacity,
       points: List.from(_currentStrokePoints),
-      createdAt: DateTime.now(),
+      createdAt: ref.read(clockServiceProvider).now(),
     );
 
     setState(() => _currentStrokePoints = []);

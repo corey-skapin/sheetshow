@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
 import 'package:sheetshow/core/database/app_database.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
@@ -15,7 +16,7 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('score_repo_test_');
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    repo = ScoreRepository(db);
+    repo = ScoreRepository(db, const SystemClockService());
   });
 
   tearDown(() async {
@@ -239,4 +240,45 @@ void main() {
       expect(tags.toSet(), {'solo', 'baroque'});
     });
   });
+
+  // ─── ClockService integration ───────────────────────────────────────────────
+
+  group('ClockService', () {
+    test('update uses ClockService for updatedAt timestamp', () async {
+      final fixedTime = DateTime(2025, 6, 15, 12, 0);
+      final fakeClock = _FakeClockService(fixedTime);
+      final clockRepo = ScoreRepository(db, fakeClock);
+
+      final file = await createTempPdf('Moonlight Sonata.pdf');
+      await clockRepo.insert(makeScore(localFilePath: file.path));
+
+      await clockRepo.update(makeScore(
+        title: 'Ode to Joy',
+        localFilePath: file.path,
+      ));
+
+      final updated = await clockRepo.getById('s1');
+      expect(updated!.updatedAt, equals(fixedTime));
+    });
+
+    test('insert preserves model timestamps', () async {
+      final fixedTime = DateTime(2025, 3, 1);
+      final fakeClock = _FakeClockService(fixedTime);
+      final clockRepo = ScoreRepository(db, fakeClock);
+
+      await clockRepo.insert(makeScore(id: 's2'));
+
+      final inserted = await clockRepo.getById('s2');
+      // insert uses the model's updatedAt, not ClockService
+      expect(inserted!.updatedAt, equals(DateTime(2024)));
+    });
+  });
+}
+
+class _FakeClockService implements ClockService {
+  _FakeClockService(this._time);
+  final DateTime _time;
+
+  @override
+  DateTime now() => _time;
 }

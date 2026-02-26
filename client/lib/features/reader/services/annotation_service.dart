@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:sheetshow/core/services/clock_service.dart';
 import 'package:sheetshow/features/reader/models/ink_stroke.dart';
 import 'package:sheetshow/features/reader/models/annotation_layer.dart';
 import 'package:sheetshow/features/reader/repositories/annotation_repository.dart';
@@ -11,11 +12,13 @@ typedef AnnotationPageKey = ({String scoreId, int pageNumber});
 
 /// Manages the annotation state for a single page: add, undo, clear.
 class AnnotationService extends StateNotifier<AnnotationLayer?> {
-  AnnotationService(this._repo, this._scoreId, this._pageNumber) : super(null) {
+  AnnotationService(this._repo, this._clock, this._scoreId, this._pageNumber)
+      : super(null) {
     _loadPage();
   }
 
   final AnnotationRepository _repo;
+  final ClockService _clock;
   final String _scoreId;
   final int _pageNumber;
 
@@ -49,7 +52,7 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
     if (current == null) return;
     final updated = current.copyWith(
       strokes: [],
-      updatedAt: DateTime.now(),
+      updatedAt: _clock.now(),
     );
     state = updated;
     await _persist(updated);
@@ -59,7 +62,7 @@ class AnnotationService extends StateNotifier<AnnotationLayer?> {
     AnnotationLayer? current,
     List<InkStroke> strokes,
   ) {
-    final now = DateTime.now();
+    final now = _clock.now();
     if (current == null) {
       return AnnotationLayer(
         id: const Uuid().v4(),
@@ -85,6 +88,7 @@ final annotationServiceProvider = StateNotifierProvider.autoDispose
     .family<AnnotationService, AnnotationLayer?, AnnotationPageKey>(
   (ref, key) => AnnotationService(
     ref.watch(annotationRepositoryProvider),
+    ref.watch(clockServiceProvider),
     key.scoreId,
     key.pageNumber,
   ),

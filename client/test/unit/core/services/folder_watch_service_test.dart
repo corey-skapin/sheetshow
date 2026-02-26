@@ -20,8 +20,8 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('watch_svc_test_');
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    scoreRepo = ScoreRepository(db);
-    folderRepo = FolderRepository(db);
+    scoreRepo = ScoreRepository(db, const SystemClockService());
+    folderRepo = FolderRepository(db, const SystemClockService());
   });
 
   tearDown(() async {
