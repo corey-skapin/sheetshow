@@ -19,6 +19,22 @@ import 'package:sheetshow/features/library/services/thumbnail_service.dart';
 
 // T036: ImportService — picks PDFs or a folder, registers in DB in-place, triggers thumbnail.
 
+/// Resolves the path to the SheetShowOcr.exe tool bundled alongside the app.
+String _resolveOcrExePath() {
+  // In a Flutter Windows app, the exe is in the same directory as the runner.
+  // During development, check the build output directory.
+  final exeDir = path.dirname(Platform.resolvedExecutable);
+  final candidates = [
+    path.join(exeDir, 'SheetShowOcr.exe'),
+    path.join(exeDir, 'ocr', 'SheetShowOcr.exe'),
+  ];
+  for (final p in candidates) {
+    if (File(p).existsSync()) return p;
+  }
+  // Fallback: try running via dotnet from source tree.
+  return 'SheetShowOcr.exe';
+}
+
 /// A simple cancellation token. Call [cancel] to request cancellation;
 /// check [isCancelled] inside loops.
 class CancellationToken {
@@ -375,6 +391,6 @@ final importServiceProvider = Provider<ImportService>((ref) {
     thumbnailService: ref.watch(thumbnailServiceProvider),
     clockService: ref.watch(clockServiceProvider),
     realbookRepository: ref.watch(realbookRepositoryProvider),
-    indexingService: RealbookIndexingService(),
+    indexingService: RealbookIndexingService(ocrExePath: _resolveOcrExePath()),
   );
 });

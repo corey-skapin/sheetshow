@@ -1,5 +1,8 @@
 # SheetShow project root .gitignore
 
+# ─── Build outputs ────────────────────────────────────────────────────────────
+build/
+
 # ─── Secrets & local config ───────────────────────────────────────────────────
 .env
 .env.*
