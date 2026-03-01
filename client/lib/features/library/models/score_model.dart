@@ -15,6 +15,7 @@ class ScoreModel {
     this.startPage,
     this.endPage,
     this.realbookTitle,
+    this.needsReview = false,
   });
 
   final String id;
@@ -40,6 +41,9 @@ class ScoreModel {
   /// Denormalized title of the parent realbook for display.
   final String? realbookTitle;
 
+  /// Whether this score needs manual review (title from OCR, not matched).
+  final bool needsReview;
+
   /// Whether this score is a realbook excerpt.
   bool get isRealbookExcerpt => realbookId != null;
 
@@ -56,6 +60,7 @@ class ScoreModel {
     int? startPage,
     int? endPage,
     String? realbookTitle,
+    bool? needsReview,
   }) =>
       ScoreModel(
         id: id ?? this.id,
@@ -70,6 +75,7 @@ class ScoreModel {
         startPage: startPage ?? this.startPage,
         endPage: endPage ?? this.endPage,
         realbookTitle: realbookTitle ?? this.realbookTitle,
+        needsReview: needsReview ?? this.needsReview,
       );
 
   @override

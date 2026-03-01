@@ -522,11 +522,15 @@ class RealbookIndexingService {
       var title =
           e.title == e.title.toUpperCase() ? _toTitleCase(e.title) : e.title;
       final match = JazzStandards.fuzzyMatch(title);
+      var matched = false;
       if (match != null && match.toLowerCase() != title.toLowerCase()) {
         logSink.writeln('  FUZZY: "$title" -> "$match"');
         title = match;
+        matched = true;
+      } else if (match != null) {
+        matched = true;
       }
-      return _TitlePage(title, e.page);
+      return _TitlePage(title, e.page, matched: matched);
     }).toList();
 
     // Build entries and detect gaps (unaccounted pages).
@@ -1062,6 +1066,7 @@ class RealbookIndexingService {
         title: titlePages[i].title,
         startPage: titlePages[i].page,
         endPage: endPage,
+        needsReview: !titlePages[i].matched,
       ));
     }
     return entries;
@@ -1069,9 +1074,10 @@ class RealbookIndexingService {
 }
 
 class _TitlePage {
-  const _TitlePage(this.title, this.page);
+  const _TitlePage(this.title, this.page, {this.matched = false});
   final String title;
   final int page;
+  final bool matched;
 }
 
 /// Classification result for a single page from the staff-line scan.

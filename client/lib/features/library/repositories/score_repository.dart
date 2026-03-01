@@ -34,6 +34,7 @@ class ScoreRepository {
   static const _scoreColumns = '''
     s.id, s.title, s.filename, s.local_file_path, s.total_pages,
     s.thumbnail_path, s.updated_at, s.realbook_id, s.start_page, s.end_page,
+    s.needs_review,
     (SELECT r.title FROM realbooks r WHERE r.id = s.realbook_id) AS realbook_title
   ''';
 
@@ -137,6 +138,7 @@ class ScoreRepository {
             realbookId: Value(score.realbookId),
             startPage: Value(score.startPage),
             endPage: Value(score.endPage),
+            needsReview: Value(score.needsReview),
           ),
         );
     if (folderId != null) {
@@ -195,10 +197,14 @@ class ScoreRepository {
   /// If [ScoreModel.title] has changed and the file at [ScoreModel.localFilePath]
   /// exists on disk, the file is renamed to match the new title and
   /// [local_file_path] / [filename] are updated in the database accordingly.
+  /// For realbook excerpts, files are not renamed (they share a PDF).
   Future<void> update(ScoreModel score) async {
     final existing = await getById(score.id);
 
-    if (existing != null && existing.title != score.title) {
+    // Realbook excerpts share a PDF — never rename the file.
+    if (existing != null &&
+        existing.title != score.title &&
+        !score.isRealbookExcerpt) {
       final oldFile = File(existing.localFilePath);
       if (await oldFile.exists()) {
         final dir = path.dirname(existing.localFilePath);
@@ -212,6 +218,9 @@ class ScoreRepository {
             filename: Value(newFilename),
             localFilePath: Value(newPath),
             thumbnailPath: Value(score.thumbnailPath),
+            startPage: Value(score.startPage),
+            endPage: Value(score.endPage),
+            needsReview: Value(score.needsReview),
             updatedAt: Value(_clock.now()),
           ));
           await _db.rebuildScoreSearch(score.id, score.title, '');
@@ -228,6 +237,9 @@ class ScoreRepository {
         .write(ScoresCompanion(
       title: Value(score.title),
       thumbnailPath: Value(score.thumbnailPath),
+      startPage: Value(score.startPage),
+      endPage: Value(score.endPage),
+      needsReview: Value(score.needsReview),
       updatedAt: Value(_clock.now()),
     ));
     await _db.rebuildScoreSearch(score.id, score.title, '');
@@ -329,6 +341,7 @@ class ScoreRepository {
       startPage: row.readNullable<int>('start_page'),
       endPage: row.readNullable<int>('end_page'),
       realbookTitle: row.readNullable<String>('realbook_title'),
+      needsReview: row.read<bool>('needs_review'),
     );
   }
 }

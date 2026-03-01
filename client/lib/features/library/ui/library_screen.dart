@@ -16,6 +16,7 @@ import 'package:sheetshow/features/library/ui/score_card.dart';
 import 'package:sheetshow/features/library/ui/folder_tree.dart';
 import 'package:sheetshow/features/library/ui/score_detail_sheet.dart';
 import 'package:sheetshow/features/library/ui/realbook_detail_sheet.dart';
+import 'package:sheetshow/features/library/ui/score_review_dialog.dart';
 import 'package:sheetshow/features/reader/models/reader_args.dart';
 
 // T039: LibraryScreen — reactive grid of scores with import FAB, folder sidebar, search bar.
@@ -244,6 +245,38 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       onSelectionChanged: (v) =>
                                           setState(() => _sortByPage = v.first),
                                     ),
+                                  if (_selectedRealbookId != null) ...[
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Builder(builder: (context) {
+                                      final reviewCount = allScores
+                                          .where((s) => s.needsReview)
+                                          .length;
+                                      return TextButton.icon(
+                                        onPressed: () {
+                                          final rbTitle = allScores
+                                                  .firstOrNull?.realbookTitle ??
+                                              '';
+                                          _openReviewDialog(
+                                            _selectedRealbookId!,
+                                            rbTitle,
+                                          );
+                                        },
+                                        icon: Icon(
+                                          Icons.rate_review_outlined,
+                                          color: reviewCount > 0
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .error
+                                              : null,
+                                        ),
+                                        label: Text(
+                                          reviewCount > 0
+                                              ? 'Review ($reviewCount)'
+                                              : 'Review',
+                                        ),
+                                      );
+                                    }),
+                                  ],
                                   if (_selectedRealbookId != null &&
                                       allTags.isNotEmpty)
                                     const SizedBox(width: AppSpacing.md),
@@ -397,6 +430,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
           ),
         );
+        // Auto-select the new realbook and open review dialog.
+        setState(() => _selectedRealbookId = result.id);
+        _openReviewDialog(result.id, result.title);
       }
     } catch (e) {
       if (mounted) {
@@ -411,6 +447,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         });
       }
     }
+  }
+
+  void _openReviewDialog(String realbookId, String realbookTitle) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => ScoreReviewDialog(
+        realbookId: realbookId,
+        realbookTitle: realbookTitle,
+      ),
+    );
   }
 
   void _showContextMenu(ScoreModel score, {String? folderId}) {

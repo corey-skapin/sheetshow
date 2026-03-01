@@ -191,11 +191,10 @@ class ImportService {
     int reviewCount = 0;
     for (final entry in entries) {
       final scoreId = const Uuid().v4();
-      final scoreTitle = entry.needsReview ? '⚠ ${entry.title}' : entry.title;
       if (entry.needsReview) reviewCount++;
       final score = ScoreModel(
         id: scoreId,
-        title: scoreTitle,
+        title: entry.title,
         filename: filename,
         localFilePath: pdfPath,
         totalPages: entry.endPage - entry.startPage + 1,
@@ -204,6 +203,7 @@ class ImportService {
         startPage: entry.startPage,
         endPage: entry.endPage,
         realbookTitle: title,
+        needsReview: entry.needsReview,
       );
       await scoreRepository.insert(score);
       // Generate thumbnail from the excerpt's first page (0-indexed).

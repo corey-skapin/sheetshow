@@ -61,7 +61,17 @@ class ScoreCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            if (score.isRealbookExcerpt)
+                            if (score.needsReview)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(right: AppSpacing.xs),
+                                child: Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 14,
+                                  color: colorScheme.error,
+                                ),
+                              )
+                            else if (score.isRealbookExcerpt)
                               Padding(
                                 padding:
                                     const EdgeInsets.only(right: AppSpacing.xs),

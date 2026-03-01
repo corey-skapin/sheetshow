@@ -30,6 +30,9 @@ class Scores extends Table {
   /// Last page of this score in the realbook PDF (1-indexed). Null for standalone scores.
   IntColumn get endPage => integer().nullable()();
 
+  /// True if this score needs manual review (e.g. title from OCR, not matched).
+  BoolColumn get needsReview => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -174,7 +177,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -287,6 +290,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 7) {
             await customStatement(
                 'ALTER TABLE realbooks ADD COLUMN page_offset INTEGER NOT NULL DEFAULT 0');
+          }
+          if (from < 8) {
+            await customStatement(
+                'ALTER TABLE scores ADD COLUMN needs_review INTEGER NOT NULL DEFAULT 0');
           }
         },
         beforeOpen: (details) async {
