@@ -328,15 +328,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _importRealbook() async {
+    // Ask user for the page offset before importing.
+    final pageOne = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _PageOffsetDialog(),
+    );
+    if (pageOne == null) return; // cancelled
+
+    final pageOffset = pageOne - 1; // convert "page 1 is PDF page X" to offset
+
     setState(() {
       _importProgress = (0, 1);
     });
     try {
       final result = await ref.read(importServiceProvider).importRealbook(
-        onProgress: (done, total) {
-          if (mounted) setState(() => _importProgress = (done, total));
-        },
-      );
+            pageOffset: pageOffset,
+            onProgress: (done, total) {
+              if (mounted) setState(() => _importProgress = (done, total));
+            },
+          );
       if (mounted && result != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -896,14 +906,18 @@ class _RealbookSidebar extends ConsumerWidget {
                   '${rb.scoreCount} scores',
                   style: AppTypography.labelSmall,
                 ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.more_vert, size: 18),
+                  tooltip: 'Manage realbook',
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    builder: (_) => RealbookDetailSheet(realbook: rb),
+                  ),
+                ),
                 selected: selectedRealbookId == rb.id,
                 selectedTileColor: colorScheme.primaryContainer,
                 onTap: () => onRealbookSelected(
                   selectedRealbookId == rb.id ? null : rb.id,
-                ),
-                onLongPress: () => showModalBottomSheet<void>(
-                  context: context,
-                  builder: (_) => RealbookDetailSheet(realbook: rb),
                 ),
               ),
             ),
@@ -911,5 +925,67 @@ class _RealbookSidebar extends ConsumerWidget {
         );
       },
     );
+  }
+}
+
+/// Dialog asking the user which PDF page corresponds to "page 1" in the
+/// realbook. This offset is applied when converting the book's own page
+/// numbers (from the index) to PDF page numbers.
+class _PageOffsetDialog extends StatefulWidget {
+  @override
+  State<_PageOffsetDialog> createState() => _PageOffsetDialogState();
+}
+
+class _PageOffsetDialogState extends State<_PageOffsetDialog> {
+  final _controller = TextEditingController(text: '1');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Page Offset'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'What PDF page number is "page 1" in this realbook? '
+            'This accounts for intro/index pages before the scores begin.',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'PDF page of "page 1"',
+              border: OutlineInputBorder(),
+              helperText: 'Default is 1 (no offset)',
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Import'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    final value = int.tryParse(_controller.text.trim()) ?? 1;
+    Navigator.pop(context, value.clamp(1, 9999));
   }
 }

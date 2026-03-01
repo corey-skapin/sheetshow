@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:sheetshow/core/data/jazz_standards.dart';
 
 /// A single indexed entry detected within a realbook.
 class IndexEntry {
@@ -11,6 +12,7 @@ class IndexEntry {
     required this.title,
     required this.startPage,
     required this.endPage,
+    this.needsReview = false,
   });
 
   final String title;
@@ -21,8 +23,12 @@ class IndexEntry {
   /// 1-indexed end page in the PDF.
   final int endPage;
 
+  /// True if this entry was inferred from gap detection rather than the index.
+  final bool needsReview;
+
   @override
-  String toString() => 'IndexEntry(title: $title, pages: $startPage-$endPage)';
+  String toString() => 'IndexEntry(title: $title, pages: $startPage-$endPage'
+      '${needsReview ? ', REVIEW' : ''})';
 }
 
 /// Service that automatically indexes a realbook PDF to detect individual
@@ -44,6 +50,7 @@ class RealbookIndexingService {
   /// [onProgress] is called with (currentPage, totalPages) during processing.
   Future<List<IndexEntry>> indexRealbook(
     String pdfPath, {
+    int pageOffset = 0,
     void Function(int current, int total)? onProgress,
   }) async {
     final doc = await PdfDocument.openFile(pdfPath);
@@ -67,16 +74,26 @@ class RealbookIndexingService {
         return textEntries;
       }
 
-      // Tier 3: Table-of-contents page parsing
-      final tocEntries =
-          await _extractFromToc(doc, totalPages, onProgress: onProgress);
+      // Tier 3: Table-of-contents page parsing (text-based)
+      final tocEntries = await _extractFromToc(doc, totalPages,
+          pageOffset: pageOffset, onProgress: onProgress);
       if (tocEntries.isNotEmpty) {
         debugPrint(
             'RealbookIndexingService: Found ${tocEntries.length} entries via TOC parsing');
         return tocEntries;
       }
 
-      // Tier 4: Staff-line scan + OCR for scanned/handwritten pages
+      // Tier 4: OCR-based index reading (for scanned books with index pages)
+      final ocrIndexEntries = await _extractFromOcrIndex(
+          doc, totalPages, pdfPath,
+          pageOffset: pageOffset, onProgress: onProgress);
+      if (ocrIndexEntries.isNotEmpty) {
+        debugPrint(
+            'RealbookIndexingService: Found ${ocrIndexEntries.length} entries via OCR index');
+        return ocrIndexEntries;
+      }
+
+      // Tier 5: Staff-line scan + OCR for scanned/handwritten pages (fallback)
       final scanEntries = await _extractFromScan(doc, onProgress: onProgress);
       if (scanEntries.isNotEmpty) {
         debugPrint(
@@ -208,6 +225,7 @@ class RealbookIndexingService {
   Future<List<IndexEntry>> _extractFromToc(
     PdfDocument doc,
     int totalPages, {
+    int pageOffset = 0,
     void Function(int current, int total)? onProgress,
   }) async {
     // Scan the first few pages for TOC content.
@@ -229,14 +247,13 @@ class RealbookIndexingService {
         final match = _tocLinePattern.firstMatch(line.trim());
         if (match != null) {
           final title = match.group(1)!.trim();
-          final pageNum = int.tryParse(match.group(2)!);
-          if (pageNum != null &&
-              pageNum >= 1 &&
-              pageNum <= totalPages &&
-              title.isNotEmpty &&
-              title.length > 1) {
-            tocEntries.add(_TitlePage(title, pageNum));
-            matchCount++;
+          final bookPageNum = int.tryParse(match.group(2)!);
+          if (bookPageNum != null && title.isNotEmpty && title.length > 1) {
+            final pdfPage = bookPageNum + pageOffset;
+            if (pdfPage >= 1 && pdfPage <= totalPages) {
+              tocEntries.add(_TitlePage(title, pdfPage));
+              matchCount++;
+            }
           }
         }
       }
@@ -263,14 +280,495 @@ class RealbookIndexingService {
     return _titlePagesToEntries(deduped, totalPages);
   }
 
-  // ─── Tier 4: Staff-line scan + OCR ────────────────────────────────────────
+  // ─── Tier 4: OCR-based index reading ──────────────────────────────────────
+
+  /// Maximum pages to scan for index content at front and back of book.
+  static const _maxIndexScanPages = 15;
+
+  /// Minimum number of TOC-like entries required across index pages.
+  static const _minIndexEntries = 5;
+
+  /// Pattern to find standalone page-number candidates in a line.
+  /// Excludes numbers embedded in hyphenated/slashed tokens (e.g. "12-4").
+  static final _pageNumberCandidate =
+      RegExp(r'(?<![/\-])\b(\d{1,4})\b(?![/\-])');
+
+  /// Words that should not be treated as score titles in index parsing.
+  static final _indexNoiseWords = RegExp(
+    r'^(index|contents|table of contents|page|copyright|introduction|'
+    r'foreword|preface|appendix|about|notation|symbols|chord|cont)\b',
+    caseSensitive: false,
+  );
+
+  /// Parse a single index line into title→page pairs.
+  ///
+  /// Handles multi-column lines ("TITLE1 42 TITLE2 43") and titles that
+  /// contain numbers ("502 Blues 153"). Works by finding candidate page
+  /// numbers first, then assigning the text before each as its title.
+  /// If a candidate has no valid title text (empty or too short), its number
+  /// is merged into the next title — it was part of the song name, not a page.
+  static List<_TitlePage> _parseIndexLine(
+    String line,
+    int totalPages,
+    int pageOffset,
+  ) {
+    // Find all standalone numbers within the valid page range.
+    final candidates = <({int number, int start, int end})>[];
+    for (final m in _pageNumberCandidate.allMatches(line)) {
+      final num = int.parse(m.group(1)!);
+      final pdfPage = num + pageOffset;
+      if (pdfPage >= 1 && pdfPage <= totalPages) {
+        candidates.add((number: num, start: m.start, end: m.end));
+      }
+    }
+    if (candidates.isEmpty) return [];
+
+    // Extract text segments between consecutive number candidates.
+    final results = <_TitlePage>[];
+    String carry = '';
+
+    for (int i = 0; i < candidates.length; i++) {
+      // Text between previous candidate's end and this candidate's start.
+      final segStart = i == 0 ? 0 : candidates[i - 1].end;
+      var segment = line.substring(segStart, candidates[i].start);
+
+      // Prepend any carried-over text (number that wasn't a page number).
+      var title =
+          carry + (carry.isNotEmpty && segment.isNotEmpty ? ' ' : '') + segment;
+      title = _cleanIndexTitle(title);
+
+      final hasLetters = RegExp(r'[A-Za-z]').hasMatch(title);
+      final isValidTitle = title.length >= 3 && hasLetters;
+      final isLast = i == candidates.length - 1;
+
+      if (isValidTitle) {
+        if (!_indexNoiseWords.hasMatch(title)) {
+          results.add(_TitlePage(title, candidates[i].number + pageOffset));
+        }
+        carry = '';
+      } else if (!isLast) {
+        // Not a valid title → this number is part of the next song's name.
+        carry = '${title.isNotEmpty ? '$title ' : ''}${candidates[i].number}';
+      } else {
+        carry = '';
+      }
+    }
+
+    return results;
+  }
+
+  /// Clean OCR artifacts from an index title string.
+  static String _cleanIndexTitle(String title) {
+    return title
+        .replaceAll(RegExp(r'[|_~]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'^[\s.,·…\-—]+'), '')
+        .replaceAll(RegExp(r'[\s.,·…\-—]+$'), '')
+        .trim();
+  }
+
+  Future<List<IndexEntry>> _extractFromOcrIndex(
+    PdfDocument doc,
+    int totalPages,
+    String pdfPath, {
+    int pageOffset = 0,
+    void Function(int current, int total)? onProgress,
+  }) async {
+    // Scan front and back of the book for index pages.
+    final frontEnd = min(_maxIndexScanPages, totalPages);
+    final backStart = max(frontEnd, totalPages - _maxIndexScanPages);
+    final pagesToScan = <int>[
+      for (int i = 0; i < frontEnd; i++) i,
+      for (int i = backStart; i < totalPages; i++)
+        if (i >= frontEnd) i,
+    ];
+
+    final progressTotal = pagesToScan.length;
+    final allTocEntries = <_TitlePage>[];
+    int indexPageCount = 0;
+
+    // Log file for diagnostics (helps debug OCR issues in release builds).
+    final logFile =
+        File('${Directory.systemTemp.path}/sheetshow_index_log.txt');
+    final logSink = logFile.openWrite();
+    logSink.writeln('=== Realbook Index Scan: $totalPages pages ===');
+    logSink.writeln('Scanning pages: $pagesToScan');
+
+    for (int idx = 0; idx < pagesToScan.length; idx++) {
+      final pageIdx = pagesToScan[idx];
+      onProgress?.call(idx + 1, progressTotal);
+
+      final page = doc.pages[pageIdx];
+
+      // First check if we already have selectable text (skip OCR).
+      final pageText = await page.loadText();
+      String text = pageText.fullText;
+      final hadText = text.trim().isNotEmpty;
+
+      // If no selectable text, OCR the full page via the external tool
+      // which renders the PDF page internally using Windows.Data.Pdf.
+      if (!hadText) {
+        text = await _ocrPdfPage(
+                doc.pages[pageIdx].pageNumber, pdfPath, logSink) ??
+            '';
+      }
+
+      logSink.writeln(
+          '\n--- Page ${pageIdx + 1} (${hadText ? "text" : "OCR"}) ---');
+      logSink.writeln(text.isEmpty ? '(empty)' : text);
+
+      if (text.trim().isEmpty) continue;
+
+      // Parse all "Title PageNum" pairs from each line using the
+      // column-aware parser that handles titles containing numbers.
+      // Lines with no page number are buffered as "orphans" and prepended
+      // to the next line — they are likely title continuations from a
+      // multi-line title in the index.
+      final lines = text.split('\n');
+      int matchCount = 0;
+      String orphan = '';
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) continue;
+
+        // Prepend any orphan text from the previous line.
+        final input = orphan.isNotEmpty ? '$orphan $trimmed' : trimmed;
+
+        final pairs = _parseIndexLine(input, totalPages, pageOffset);
+        if (pairs.isEmpty) {
+          // No page numbers found — this line is likely a title continuation.
+          // Only buffer text that looks like title content (has letters).
+          final cleaned = _cleanIndexTitle(trimmed);
+          if (cleaned.isNotEmpty && RegExp(r'[A-Za-z]').hasMatch(cleaned)) {
+            orphan = orphan.isNotEmpty ? '$orphan $cleaned' : cleaned;
+            // Cap orphan length — real continuations are short (e.g. "HEART").
+            // Long orphans are from non-index text and should be discarded.
+            if (orphan.length > 60) {
+              logSink.writeln('  ORPHAN: "$cleaned" (discarded — too long)');
+              orphan = '';
+            } else {
+              logSink.writeln('  ORPHAN: "$cleaned" (buffered for next line)');
+            }
+          }
+          continue;
+        }
+
+        orphan = '';
+        for (final pair in pairs) {
+          // Skip titles that are just numbers after cleaning.
+          if (RegExp(r'^\d+$').hasMatch(pair.title)) continue;
+
+          logSink.writeln('  MATCH: "${pair.title}" -> PDF page ${pair.page}');
+          allTocEntries.add(pair);
+          matchCount++;
+        }
+      }
+
+      logSink.writeln('  => $matchCount matches on page ${pageIdx + 1}');
+      if (matchCount >= 3) indexPageCount++;
+    }
+
+    // Need enough entries and at least one page that looked like an index.
+    logSink.writeln('\n=== RESULT: ${allTocEntries.length} entries, '
+        '$indexPageCount index pages ===');
+    if (allTocEntries.length < _minIndexEntries || indexPageCount < 1) {
+      logSink.writeln('FAILED: Not enough entries (need >= $_minIndexEntries)');
+      await logSink.flush();
+      await logSink.close();
+      return [];
+    }
+
+    for (final e in allTocEntries) {
+      logSink.writeln('  "${e.title}" -> page ${e.page}');
+    }
+
+    debugPrint(
+        'RealbookIndexingService: OCR index found ${allTocEntries.length} '
+        'entries across $indexPageCount index pages');
+    debugPrint('RealbookIndexingService: Log written to ${logFile.path}');
+
+    // Deduplicate: same title+page is exact dup; same page with different
+    // titles keeps the longer one (likely more complete OCR read).
+    final seen = <String>{};
+    final deduped = <_TitlePage>[];
+    final byPage = <int, _TitlePage>{};
+    for (final e in allTocEntries) {
+      final key = '${e.title.toLowerCase()}:${e.page}';
+      if (!seen.add(key)) continue; // exact duplicate
+
+      final existing = byPage[e.page];
+      if (existing == null) {
+        byPage[e.page] = e;
+        deduped.add(e);
+      } else {
+        // Prefer entries that look like real titles: mostly alphabetic,
+        // reasonable length. Score the existing vs new entry.
+        final existingScore = _titleQuality(existing.title);
+        final newScore = _titleQuality(e.title);
+        if (newScore > existingScore) {
+          deduped.remove(existing);
+          byPage[e.page] = e;
+          deduped.add(e);
+          logSink.writeln(
+              '  DEDUP: page ${e.page}: "${existing.title}" -> "${e.title}"');
+        }
+      }
+    }
+    deduped.sort((a, b) => a.page.compareTo(b.page));
+
+    // Normalize titles: Title Case for ALL-CAPS, then fuzzy-match against
+    // known jazz standards to correct OCR misreads.
+    final normalized = deduped.map((e) {
+      var title =
+          e.title == e.title.toUpperCase() ? _toTitleCase(e.title) : e.title;
+      final match = JazzStandards.fuzzyMatch(title);
+      if (match != null && match.toLowerCase() != title.toLowerCase()) {
+        logSink.writeln('  FUZZY: "$title" -> "$match"');
+        title = match;
+      }
+      return _TitlePage(title, e.page);
+    }).toList();
+
+    // Build entries and detect gaps (unaccounted pages).
+    // For gap pages, run a targeted scan (staff-line + title OCR) to try
+    // to identify scores that the index parsing missed.
+    final entries = _titlePagesToEntries(normalized, totalPages);
+    logSink.writeln('\n=== Gap-filling scan ===');
+    final result = await _fillGaps(entries, doc, totalPages, logSink);
+    await logSink.flush();
+    await logSink.close();
+    return result;
+  }
+
+  /// Score a title's quality: higher = more likely a real song title.
+  /// Prefers titles that are mostly alphabetic, reasonable length (5-40 chars),
+  /// and don't contain excessive punctuation or digits.
+  static double _titleQuality(String title) {
+    if (title.isEmpty) return 0;
+    final alphaCount = title.runes
+        .where((r) => RegExp(r'[a-zA-Z]').hasMatch(String.fromCharCode(r)))
+        .length;
+    final alphaRatio = alphaCount / title.length;
+    // Penalize very short or very long titles.
+    final lengthScore = title.length >= 5 && title.length <= 40 ? 1.0 : 0.5;
+    return alphaRatio * lengthScore;
+  }
+
+  /// Convert ALL-CAPS text to Title Case, preserving small words lowercase.
+  static String _toTitleCase(String text) {
+    const smallWords = {
+      'a',
+      'an',
+      'the',
+      'and',
+      'but',
+      'or',
+      'nor',
+      'for',
+      'yet',
+      'so',
+      'in',
+      'on',
+      'at',
+      'to',
+      'of',
+      'by',
+      'up',
+      'de',
+      'en',
+      'is',
+    };
+    final words = text.toLowerCase().split(' ');
+    return words.asMap().entries.map((e) {
+      final word = e.value;
+      // Always capitalize first and last word; lowercase small words.
+      if (e.key == 0 ||
+          e.key == words.length - 1 ||
+          !smallWords.contains(word)) {
+        return word.isEmpty
+            ? word
+            : '${word[0].toUpperCase()}${word.substring(1)}';
+      }
+      return word;
+    }).join(' ');
+  }
+
+  /// Run OCR on a PDF page by calling the external tool in PDF mode.
+  /// The tool renders the page internally using Windows.Data.Pdf at high
+  /// resolution, then applies binarization and OCR.
+  Future<String?> _ocrPdfPage(int pageNumber, String pdfPath,
+      [IOSink? log]) async {
+    log?.writeln('  [OCR] Running OCR on PDF page $pageNumber...');
+
+    try {
+      final result = await Process.run(ocrExePath, [pdfPath, '$pageNumber']);
+      if (result.exitCode != 0) {
+        log?.writeln('  [OCR] FAILED exit=${result.exitCode}: '
+            '${result.stderr}');
+        return null;
+      }
+      final text = result.stdout as String;
+      log?.writeln('  [OCR] Got ${text.length} chars');
+      return text;
+    } catch (e) {
+      log?.writeln('  [OCR] EXCEPTION: $e');
+      return null;
+    }
+  }
+
+  /// Given entries from an index, find page gaps where no score is assigned
+  /// and insert review-flagged placeholder entries.
+  List<IndexEntry> _addGapEntries(List<IndexEntry> entries, int totalPages) {
+    if (entries.isEmpty) return entries;
+
+    final result = <IndexEntry>[];
+    final assigned = <int>{};
+
+    for (final e in entries) {
+      for (int p = e.startPage; p <= e.endPage; p++) {
+        assigned.add(p);
+      }
+    }
+
+    // Don't flag the first few pages (index/TOC pages themselves) or
+    // the last page (often a back cover).
+    final firstScorePage = entries.first.startPage;
+    final lastScorePage = entries.last.endPage;
+
+    int gapStart = -1;
+    for (int p = firstScorePage; p <= lastScorePage; p++) {
+      if (!assigned.contains(p)) {
+        if (gapStart == -1) gapStart = p;
+      } else {
+        if (gapStart != -1) {
+          result.add(IndexEntry(
+            title: 'Unindexed (pages $gapStart–${p - 1})',
+            startPage: gapStart,
+            endPage: p - 1,
+            needsReview: true,
+          ));
+          gapStart = -1;
+        }
+      }
+    }
+    if (gapStart != -1) {
+      result.add(IndexEntry(
+        title: 'Unindexed (pages $gapStart–$lastScorePage)',
+        startPage: gapStart,
+        endPage: lastScorePage,
+        needsReview: true,
+      ));
+    }
+
+    // Merge indexed entries and gap entries, sorted by start page.
+    result.addAll(entries);
+    result.sort((a, b) => a.startPage.compareTo(b.startPage));
+
+    final reviewCount = result.where((e) => e.needsReview).length;
+    if (reviewCount > 0) {
+      debugPrint(
+          'RealbookIndexingService: $reviewCount gap entries flagged for review');
+    }
+
+    return result;
+  }
+
+  /// After the initial OCR index, find pages with no score assigned and
+  /// run a targeted staff-line + title-OCR scan on them to recover missing
+  /// entries. Pages that have staves but weren't in the index get their
+  /// title read from the top of the page; pages without staves are skipped
+  /// (likely intro/blank/index pages).
+  Future<List<IndexEntry>> _fillGaps(
+    List<IndexEntry> entries,
+    PdfDocument doc,
+    int totalPages,
+    IOSink logSink,
+  ) async {
+    if (entries.isEmpty) return entries;
+
+    // Find which pages are already covered.
+    final assigned = <int>{};
+    for (final e in entries) {
+      for (int p = e.startPage; p <= e.endPage; p++) {
+        assigned.add(p);
+      }
+    }
+
+    final firstScorePage = entries.first.startPage;
+    final lastScorePage = entries.last.endPage;
+
+    // Collect unassigned pages within the score range.
+    final gapPages = <int>[];
+    for (int p = firstScorePage; p <= lastScorePage; p++) {
+      if (!assigned.contains(p)) gapPages.add(p);
+    }
+
+    if (gapPages.isEmpty) {
+      logSink.writeln('No gap pages to scan');
+      return entries;
+    }
+
+    logSink.writeln('Scanning ${gapPages.length} gap pages: $gapPages');
+
+    // Classify each gap page (staff-line detection).
+    final recovered = <_TitlePage>[];
+    for (final pageNum in gapPages) {
+      if (pageNum < 1 || pageNum > doc.pages.length) continue;
+      final page = doc.pages[pageNum - 1]; // 0-indexed
+
+      final info = await _classifyPage(page);
+      if (!info.hasStaves) {
+        logSink.writeln('  Gap page $pageNum: no staves (skipped)');
+        continue;
+      }
+
+      // This page has music notation — try to read its title.
+      String? title;
+      if (info.isScoreStart) {
+        title = await _ocrTitleRegion(page, info.firstStaffFraction);
+        // Try fuzzy matching against known jazz standards.
+        if (title != null && title.isNotEmpty) {
+          final match = JazzStandards.fuzzyMatch(title);
+          if (match != null) {
+            logSink.writeln('  Gap page $pageNum: fuzzy "$title" -> "$match"');
+            title = match;
+          }
+        }
+      }
+
+      final displayTitle =
+          (title != null && title.isNotEmpty) ? title : 'Page $pageNum';
+      logSink.writeln('  Gap page $pageNum: staves=${info.hasStaves}, '
+          'scoreStart=${info.isScoreStart}, title="$displayTitle"');
+      recovered.add(_TitlePage(displayTitle, pageNum));
+    }
+
+    if (recovered.isEmpty) {
+      logSink.writeln('No scores recovered from gap pages');
+      return _addGapEntries(entries, totalPages);
+    }
+
+    logSink.writeln('Recovered ${recovered.length} scores from gap pages');
+
+    // Merge recovered entries with existing ones and rebuild.
+    final allTitlePages = <_TitlePage>[
+      ...entries.map((e) => _TitlePage(e.title, e.startPage)),
+      ...recovered,
+    ];
+    allTitlePages.sort((a, b) => a.page.compareTo(b.page));
+    final merged = _titlePagesToEntries(allTitlePages, totalPages);
+    return _addGapEntries(merged, totalPages);
+  }
+
+  // ─── Tier 5: Staff-line scan + OCR (fallback) ─────────────────────────────
 
   /// Render width for the low-res staff-line detection pass.
   static const _scanWidth = 200;
 
   /// Minimum fraction of row pixels that must be dark to count as a
-  /// horizontal line. Staff lines span most of the page width.
-  static const _lineMinFill = 0.25;
+  /// horizontal line. Staff lines span most of the page width. Lowered
+  /// to handle faded or broken lines in scanned realbooks.
+  static const _lineMinFill = 0.15;
 
   /// Dark pixel threshold (0-255). Pixel brightness below this = dark.
   static const _darkThreshold = 128;
@@ -280,7 +778,9 @@ class RealbookIndexingService {
   static const _minStaffGroups = 1;
 
   /// The fraction of page height from the top used for title detection.
-  static const _scanTitleRegion = 0.22;
+  /// This is the minimum gap above the first staff system for a page to be
+  /// considered a score start. Lowered from 0.22 to catch compact titles.
+  static const _scanTitleRegion = 0.10;
 
   /// Render width for the title-region OCR crop.
   static const _ocrRenderWidth = 600;
@@ -302,14 +802,39 @@ class RealbookIndexingService {
       pageInfos.add(info);
     }
 
+    // Compute a baseline "typical staff start" from all music pages.
+    // Continuation pages have staves near the top; score-start pages have
+    // a gap for the title. We use the 25th-percentile of staff start
+    // positions as the baseline (most pages are continuations).
+    final staffStarts = <double>[];
+    for (final info in pageInfos) {
+      if (info.hasStaves && info.firstStaffFraction > 0.01) {
+        staffStarts.add(info.firstStaffFraction);
+      }
+    }
+
+    // Adaptive threshold: baseline + a margin, or the fixed minimum.
+    double adaptiveThreshold = _scanTitleRegion;
+    if (staffStarts.length >= 5) {
+      staffStarts.sort();
+      final baseline = staffStarts[(staffStarts.length * 0.25).floor()];
+      // A page is a score start if its staff starts noticeably lower than
+      // the baseline (continuation pages). Require at least 5% more gap.
+      final adaptive = baseline + 0.05;
+      adaptiveThreshold =
+          adaptive > _scanTitleRegion ? adaptive : _scanTitleRegion;
+      debugPrint(
+          'RealbookIndexingService: Adaptive threshold=$adaptiveThreshold '
+          '(baseline=$baseline, pages with staves=${staffStarts.length})');
+    }
+
     // Find score boundary pages: a score page whose first staff system
-    // starts significantly lower than the top (leaving room for a title).
-    // Pages where staves start right at the top are continuation pages.
+    // starts significantly lower than the baseline (leaving room for a title).
     final boundaryIndices = <int>[];
     for (int i = 0; i < totalPages; i++) {
       final info = pageInfos[i];
       if (!info.hasStaves) continue;
-      if (info.isScoreStart) {
+      if (info.firstStaffFraction >= adaptiveThreshold) {
         boundaryIndices.add(i);
       } else if (boundaryIndices.isEmpty) {
         // First music page, even without a title gap, starts a score.

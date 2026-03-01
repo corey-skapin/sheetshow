@@ -133,6 +133,7 @@ class Realbooks extends Table {
   TextColumn get filename => text()();
   TextColumn get localFilePath => text()();
   IntColumn get totalPages => integer()();
+  IntColumn get pageOffset => integer().withDefault(const Constant(0))();
   DateTimeColumn get updatedAt => dateTime()();
 
   @override
@@ -173,7 +174,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -282,6 +283,10 @@ class AppDatabase extends _$AppDatabase {
                 'ALTER TABLE scores ADD COLUMN start_page INTEGER');
             await customStatement(
                 'ALTER TABLE scores ADD COLUMN end_page INTEGER');
+          }
+          if (from < 7) {
+            await customStatement(
+                'ALTER TABLE realbooks ADD COLUMN page_offset INTEGER NOT NULL DEFAULT 0');
           }
         },
         beforeOpen: (details) async {

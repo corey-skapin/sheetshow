@@ -194,11 +194,12 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
                     else
                       const Center(child: CircularProgressIndicator()),
 
-                    // Left edge tap zone → previous
+                    // Left edge tap zone → previous (below AppBar)
                     if (_currentIndex > 0)
                       Positioned(
                         left: 0,
-                        top: 0,
+                        top:
+                            kToolbarHeight + MediaQuery.of(context).padding.top,
                         bottom: 0,
                         width: 60,
                         child: GestureDetector(
@@ -211,11 +212,12 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen> {
                         ),
                       ),
 
-                    // Right edge tap zone → next
+                    // Right edge tap zone → next (below AppBar)
                     if (_currentIndex < _scoreIds.length - 1)
                       Positioned(
                         right: 0,
-                        top: 0,
+                        top:
+                            kToolbarHeight + MediaQuery.of(context).padding.top,
                         bottom: 0,
                         width: 60,
                         child: GestureDetector(

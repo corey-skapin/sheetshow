@@ -38,3 +38,16 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
+
+# Build and bundle SheetShowOcr — the .NET OCR tool used for realbook indexing.
+# Runs as a post-build step so the latest binary is always in the output dir.
+set(OCR_PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/ocr/SheetShowOcr")
+set(OCR_OUTPUT_DIR "$<TARGET_FILE_DIR:${BINARY_NAME}>/ocr")
+add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+  COMMAND dotnet build "${OCR_PROJECT_DIR}" -c Release --nologo -v q
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${OCR_OUTPUT_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${OCR_PROJECT_DIR}/bin/Release/net8.0-windows10.0.19041.0"
+    "${OCR_OUTPUT_DIR}"
+  COMMENT "Building and copying SheetShowOcr to output"
+)

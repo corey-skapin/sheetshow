@@ -69,6 +69,7 @@ class RealbookRepository {
             filename: realbook.filename,
             localFilePath: realbook.localFilePath,
             totalPages: realbook.totalPages,
+            pageOffset: Value(realbook.pageOffset),
             updatedAt: realbook.updatedAt,
           ),
         );
@@ -137,6 +138,7 @@ class RealbookRepository {
         filename: row.filename,
         localFilePath: row.localFilePath,
         totalPages: row.totalPages,
+        pageOffset: row.pageOffset,
         updatedAt: row.updatedAt,
       );
 
@@ -146,6 +148,7 @@ class RealbookRepository {
         filename: row.read<String>('filename'),
         localFilePath: row.read<String>('local_file_path'),
         totalPages: row.read<int>('total_pages'),
+        pageOffset: row.read<int>('page_offset'),
         updatedAt:
             DateTime.fromMillisecondsSinceEpoch(row.read<int>('updated_at')),
         scoreCount: row.read<int>('score_count'),

@@ -7,6 +7,7 @@ class RealbookModel {
     required this.localFilePath,
     required this.totalPages,
     required this.updatedAt,
+    this.pageOffset = 0,
     this.scoreCount = 0,
   });
 
@@ -16,6 +17,10 @@ class RealbookModel {
   final String localFilePath;
   final int totalPages;
   final DateTime updatedAt;
+
+  /// Offset to add to book page numbers to get PDF page numbers.
+  /// E.g. if page 1 of the book is PDF page 8, pageOffset = 7.
+  final int pageOffset;
 
   /// Number of indexed scores within this realbook (denormalized for display).
   final int scoreCount;
@@ -27,6 +32,7 @@ class RealbookModel {
     String? localFilePath,
     int? totalPages,
     DateTime? updatedAt,
+    int? pageOffset,
     int? scoreCount,
   }) =>
       RealbookModel(
@@ -36,6 +42,7 @@ class RealbookModel {
         localFilePath: localFilePath ?? this.localFilePath,
         totalPages: totalPages ?? this.totalPages,
         updatedAt: updatedAt ?? this.updatedAt,
+        pageOffset: pageOffset ?? this.pageOffset,
         scoreCount: scoreCount ?? this.scoreCount,
       );
 

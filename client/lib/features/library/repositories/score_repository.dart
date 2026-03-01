@@ -57,7 +57,7 @@ class ScoreRepository {
       SELECT $_scoreColumns, $_tagsSubquery
       FROM scores s
       WHERE s.realbook_id = ?
-      ORDER BY s.start_page ASC
+      ORDER BY s.title ASC
       ''',
             variables: [Variable.withString(realbookId)],
             readsFrom: tables,

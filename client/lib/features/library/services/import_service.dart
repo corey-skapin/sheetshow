@@ -136,6 +136,7 @@ class ImportService {
   ///
   /// [onProgress] is called with (currentPage, totalPages) during indexing.
   Future<RealbookModel?> importRealbook({
+    int pageOffset = 0,
     void Function(int done, int total)? onProgress,
   }) async {
     final result = await FilePicker.platform.pickFiles(
@@ -174,6 +175,7 @@ class ImportService {
       filename: filename,
       localFilePath: pdfPath,
       totalPages: totalPages,
+      pageOffset: pageOffset,
       updatedAt: now,
     );
     await realbookRepository.insert(realbook);
@@ -181,15 +183,19 @@ class ImportService {
     // Auto-index the realbook.
     final entries = await indexingService.indexRealbook(
       pdfPath,
+      pageOffset: pageOffset,
       onProgress: onProgress,
     );
 
     // Create score entries for each detected section.
+    int reviewCount = 0;
     for (final entry in entries) {
       final scoreId = const Uuid().v4();
+      final scoreTitle = entry.needsReview ? '⚠ ${entry.title}' : entry.title;
+      if (entry.needsReview) reviewCount++;
       final score = ScoreModel(
         id: scoreId,
-        title: entry.title,
+        title: scoreTitle,
         filename: filename,
         localFilePath: pdfPath,
         totalPages: entry.endPage - entry.startPage + 1,
@@ -206,6 +212,11 @@ class ImportService {
         scoreId,
         pageIndex: entry.startPage - 1,
       ));
+    }
+
+    if (reviewCount > 0) {
+      debugPrint('ImportService: $reviewCount scores flagged for review '
+          '(unindexed page ranges)');
     }
 
     return realbook.copyWith(scoreCount: entries.length);
