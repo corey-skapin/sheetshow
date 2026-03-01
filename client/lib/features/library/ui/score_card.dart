@@ -13,12 +13,14 @@ class ScoreCard extends StatelessWidget {
     required this.onTap,
     this.tags = const [],
     this.isSelected = false,
+    this.showPageNumber = false,
   });
 
   final ScoreModel score;
   final VoidCallback onTap;
   final List<String> tags;
   final bool isSelected;
+  final bool showPageNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +91,14 @@ class ScoreCard extends StatelessWidget {
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                          ),
+                        if (showPageNumber && score.startPage != null)
+                          Text(
+                            'p. ${score.startPage}',
+                            style: AppTypography.labelSmall.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                       ],
                     ),

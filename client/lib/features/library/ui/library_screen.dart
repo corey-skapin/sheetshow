@@ -42,6 +42,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final Set<String> _selectedIds = {};
   final Set<String> _filterTags = {};
   String? _selectedRealbookId;
+  bool _sortByPage = false;
 
   void _toggleSelect(ScoreModel score) {
     setState(() {
@@ -149,6 +150,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     onFolderSelected: (id) => setState(() {
                       _selectedFolderId = id;
                       _selectedRealbookId = null;
+                      _sortByPage = false;
                       _searchQuery = '';
                       _searchController.clear();
                       _selectedIds.clear();
@@ -200,28 +202,67 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         for (final s in allScores) ...s.effectiveTags,
                       }.toList()
                         ..sort();
-                      final scores = _filterTags.isEmpty
+                      var scores = _filterTags.isEmpty
                           ? allScores
                           : allScores
                               .where((s) => _filterTags
                                   .every((t) => s.effectiveTags.contains(t)))
                               .toList();
+                      if (_sortByPage && _selectedRealbookId != null) {
+                        scores = [...scores]..sort((a, b) =>
+                            (a.startPage ?? 0).compareTo(b.startPage ?? 0));
+                      }
                       if (allScores.isEmpty && _selectedIds.isEmpty) {
                         return _EmptyState(onImport: _importFiles);
                       }
                       return Column(
                         children: [
-                          if (allTags.isNotEmpty)
-                            _TagFilterBar(
-                              tags: allTags,
-                              selectedTags: _filterTags,
-                              onToggle: (tag) => setState(() {
-                                if (_filterTags.contains(tag)) {
-                                  _filterTags.remove(tag);
-                                } else {
-                                  _filterTags.add(tag);
-                                }
-                              }),
+                          if (_selectedRealbookId != null || allTags.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: AppSpacing.xs,
+                              ),
+                              child: Row(
+                                children: [
+                                  if (_selectedRealbookId != null)
+                                    SegmentedButton<bool>(
+                                      segments: const [
+                                        ButtonSegment(
+                                          value: false,
+                                          label: Text('A–Z'),
+                                          icon: Icon(Icons.sort_by_alpha),
+                                        ),
+                                        ButtonSegment(
+                                          value: true,
+                                          label: Text('Page'),
+                                          icon:
+                                              Icon(Icons.format_list_numbered),
+                                        ),
+                                      ],
+                                      selected: {_sortByPage},
+                                      onSelectionChanged: (v) =>
+                                          setState(() => _sortByPage = v.first),
+                                    ),
+                                  if (_selectedRealbookId != null &&
+                                      allTags.isNotEmpty)
+                                    const SizedBox(width: AppSpacing.md),
+                                  if (allTags.isNotEmpty)
+                                    Expanded(
+                                      child: _TagFilterBar(
+                                        tags: allTags,
+                                        selectedTags: _filterTags,
+                                        onToggle: (tag) => setState(() {
+                                          if (_filterTags.contains(tag)) {
+                                            _filterTags.remove(tag);
+                                          } else {
+                                            _filterTags.add(tag);
+                                          }
+                                        }),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           Expanded(
                             child: scores.isEmpty
@@ -230,6 +271,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                 : _ScoreGrid(
                                     scores: scores,
                                     selectedIds: _selectedIds,
+                                    showPageNumbers: _sortByPage,
                                     onTap: (score) {
                                       final index = scores.indexOf(score);
                                       context.push(
@@ -423,6 +465,7 @@ class _ScoreGrid extends StatelessWidget {
     required this.onTap,
     required this.onToggleSelect,
     required this.onContextMenu,
+    this.showPageNumbers = false,
   });
 
   final List<ScoreModel> scores;
@@ -430,6 +473,7 @@ class _ScoreGrid extends StatelessWidget {
   final void Function(ScoreModel) onTap;
   final void Function(ScoreModel) onToggleSelect;
   final void Function(ScoreModel) onContextMenu;
+  final bool showPageNumbers;
 
   @override
   Widget build(BuildContext context) {
@@ -452,6 +496,7 @@ class _ScoreGrid extends StatelessWidget {
             score: score,
             isSelected: isSelected,
             tags: score.effectiveTags,
+            showPageNumber: showPageNumbers,
             onTap: () {
               // Ctrl+click, or click while any item is selected → toggle
               if (selectedIds.isNotEmpty ||
