@@ -220,8 +220,9 @@ class _ScoreReviewDialogState extends ConsumerState<ScoreReviewDialog> {
                                             () => _selectedScoreId = score.id);
                                         _goToScore(score);
                                       },
-                                      onSave: (title, bookPage) =>
-                                          _saveScore(score, title, bookPage),
+                                      onSave: (title, startPage, endPage) =>
+                                          _saveScore(
+                                              score, title, startPage, endPage),
                                       onConfirm: () => _confirmScore(score),
                                     );
                                   },
@@ -256,25 +257,17 @@ class _ScoreReviewDialogState extends ConsumerState<ScoreReviewDialog> {
     );
   }
 
-  Future<void> _saveScore(
-      ScoreModel score, String newTitle, int newBookPage) async {
+  Future<void> _saveScore(ScoreModel score, String newTitle, int newBookStart,
+      int newBookEnd) async {
     final repo = ref.read(scoreRepositoryProvider);
-    // Convert book page to PDF page.
-    final newStartPage = newBookPage + score.pageOffset;
-
-    // Recalculate endPage: find the next score's startPage.
-    final sortedAll = [..._scores]
-      ..sort((a, b) => (a.startPage ?? 0).compareTo(b.startPage ?? 0));
-    final idx = sortedAll.indexWhere((s) => s.id == score.id);
-    final nextScore = idx + 1 < sortedAll.length ? sortedAll[idx + 1] : null;
-    final newEndPage = nextScore != null
-        ? (nextScore.startPage ?? newStartPage) - 1
-        : score.endPage;
+    // Convert book pages to PDF pages.
+    final newStartPage = newBookStart + score.pageOffset;
+    final newEndPage = newBookEnd + score.pageOffset;
 
     final updated = score.copyWith(
       title: newTitle,
       startPage: newStartPage,
-      endPage: newEndPage ?? newStartPage,
+      endPage: newEndPage,
       needsReview: false,
     );
     await repo.update(updated);
@@ -309,7 +302,8 @@ class _ScoreReviewTile extends StatefulWidget {
   final ScoreModel score;
   final bool isSelected;
   final VoidCallback onTap;
-  final Future<void> Function(String title, int bookPage) onSave;
+  final Future<void> Function(String title, int bookStartPage, int bookEndPage)
+      onSave;
   final VoidCallback onConfirm;
 
   @override
@@ -318,7 +312,8 @@ class _ScoreReviewTile extends StatefulWidget {
 
 class _ScoreReviewTileState extends State<_ScoreReviewTile> {
   late TextEditingController _titleController;
-  late TextEditingController _pageController;
+  late TextEditingController _startPageController;
+  late TextEditingController _endPageController;
   bool _editing = false;
   bool _saving = false;
 
@@ -326,8 +321,10 @@ class _ScoreReviewTileState extends State<_ScoreReviewTile> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.score.title);
-    _pageController =
+    _startPageController =
         TextEditingController(text: '${widget.score.bookPage ?? 1}');
+    _endPageController = TextEditingController(
+        text: '${widget.score.bookEndPage ?? widget.score.bookPage ?? 1}');
   }
 
   @override
@@ -335,7 +332,9 @@ class _ScoreReviewTileState extends State<_ScoreReviewTile> {
     super.didUpdateWidget(old);
     if (old.score.id != widget.score.id) {
       _titleController.text = widget.score.title;
-      _pageController.text = '${widget.score.bookPage ?? 1}';
+      _startPageController.text = '${widget.score.bookPage ?? 1}';
+      _endPageController.text =
+          '${widget.score.bookEndPage ?? widget.score.bookPage ?? 1}';
       _editing = false;
     }
   }
@@ -343,7 +342,8 @@ class _ScoreReviewTileState extends State<_ScoreReviewTile> {
   @override
   void dispose() {
     _titleController.dispose();
-    _pageController.dispose();
+    _startPageController.dispose();
+    _endPageController.dispose();
     super.dispose();
   }
 
@@ -365,10 +365,11 @@ class _ScoreReviewTileState extends State<_ScoreReviewTile> {
           ),
           child: Row(
             children: [
-              // Page badge — shows book page number
+              // Page range badge — shows book page numbers
               Container(
-                width: 48,
+                constraints: const BoxConstraints(minWidth: 72),
                 height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: score.needsReview
@@ -377,28 +378,63 @@ class _ScoreReviewTileState extends State<_ScoreReviewTile> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: _editing
-                    ? SizedBox(
-                        width: 40,
-                        child: TextField(
-                          controller: _pageController,
-                          textAlign: TextAlign.center,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 6),
-                            border: InputBorder.none,
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 32,
+                            child: TextField(
+                              controller: _startPageController,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding:
+                                    EdgeInsets.symmetric(vertical: 6),
+                                border: InputBorder.none,
+                              ),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                            ),
                           ),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                        ),
+                          Text('–',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          SizedBox(
+                            width: 32,
+                            child: TextField(
+                              controller: _endPageController,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                contentPadding:
+                                    EdgeInsets.symmetric(vertical: 6),
+                                border: InputBorder.none,
+                              ),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                            ),
+                          ),
+                        ],
                       )
                     : Text(
-                        'p.${score.bookPage ?? '?'}',
+                        score.bookPage == score.bookEndPage ||
+                                score.bookEndPage == null
+                            ? 'p.${score.bookPage ?? '?'}'
+                            : '${score.bookPage}–${score.bookEndPage}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: score.needsReview
@@ -449,7 +485,9 @@ class _ScoreReviewTileState extends State<_ScoreReviewTile> {
                   onPressed: () => setState(() {
                     _editing = false;
                     _titleController.text = score.title;
-                    _pageController.text = '${score.bookPage ?? 1}';
+                    _startPageController.text = '${score.bookPage ?? 1}';
+                    _endPageController.text =
+                        '${score.bookEndPage ?? score.bookPage ?? 1}';
                   }),
                   visualDensity: VisualDensity.compact,
                 ),
@@ -480,11 +518,12 @@ class _ScoreReviewTileState extends State<_ScoreReviewTile> {
 
   Future<void> _save() async {
     final title = _titleController.text.trim();
-    final bookPage = int.tryParse(_pageController.text.trim());
-    if (title.isEmpty || bookPage == null || bookPage < 1) return;
+    final startPage = int.tryParse(_startPageController.text.trim());
+    final endPage = int.tryParse(_endPageController.text.trim());
+    if (title.isEmpty || startPage == null || startPage < 1) return;
 
     setState(() => _saving = true);
-    await widget.onSave(title, bookPage);
+    await widget.onSave(title, startPage, endPage ?? startPage);
     if (mounted) {
       setState(() {
         _saving = false;

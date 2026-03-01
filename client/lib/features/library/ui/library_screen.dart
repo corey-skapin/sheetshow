@@ -304,7 +304,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                 : _ScoreGrid(
                                     scores: scores,
                                     selectedIds: _selectedIds,
-                                    showPageNumbers: _sortByPage,
                                     onTap: (score) {
                                       final index = scores.indexOf(score);
                                       context.push(
@@ -511,7 +510,6 @@ class _ScoreGrid extends StatelessWidget {
     required this.onTap,
     required this.onToggleSelect,
     required this.onContextMenu,
-    this.showPageNumbers = false,
   });
 
   final List<ScoreModel> scores;
@@ -519,7 +517,6 @@ class _ScoreGrid extends StatelessWidget {
   final void Function(ScoreModel) onTap;
   final void Function(ScoreModel) onToggleSelect;
   final void Function(ScoreModel) onContextMenu;
-  final bool showPageNumbers;
 
   @override
   Widget build(BuildContext context) {
@@ -542,7 +539,6 @@ class _ScoreGrid extends StatelessWidget {
             score: score,
             isSelected: isSelected,
             tags: score.effectiveTags,
-            showPageNumber: showPageNumbers,
             onTap: () {
               // Ctrl+click, or click while any item is selected → toggle
               if (selectedIds.isNotEmpty ||

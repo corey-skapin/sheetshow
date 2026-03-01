@@ -55,6 +55,9 @@ class ScoreModel {
   /// Returns null for standalone scores or if startPage is not set.
   int? get bookPage => startPage != null ? startPage! - pageOffset : null;
 
+  /// The book end page number (endPage minus the realbook's page offset).
+  int? get bookEndPage => endPage != null ? endPage! - pageOffset : null;
+
   ScoreModel copyWith({
     String? id,
     String? title,
