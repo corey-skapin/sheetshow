@@ -102,9 +102,9 @@ class ScoreCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        if (showPageNumber && score.startPage != null)
+                        if (showPageNumber && score.bookPage != null)
                           Text(
-                            'p. ${score.startPage}',
+                            'p. ${score.bookPage}',
                             style: AppTypography.labelSmall.copyWith(
                               color: colorScheme.primary,
                               fontWeight: FontWeight.w600,

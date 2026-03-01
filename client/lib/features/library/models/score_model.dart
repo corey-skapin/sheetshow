@@ -15,6 +15,7 @@ class ScoreModel {
     this.startPage,
     this.endPage,
     this.realbookTitle,
+    this.pageOffset = 0,
     this.needsReview = false,
   });
 
@@ -41,11 +42,18 @@ class ScoreModel {
   /// Denormalized title of the parent realbook for display.
   final String? realbookTitle;
 
+  /// Denormalized page offset from the parent realbook.
+  final int pageOffset;
+
   /// Whether this score needs manual review (title from OCR, not matched).
   final bool needsReview;
 
   /// Whether this score is a realbook excerpt.
   bool get isRealbookExcerpt => realbookId != null;
+
+  /// The book page number (startPage minus the realbook's page offset).
+  /// Returns null for standalone scores or if startPage is not set.
+  int? get bookPage => startPage != null ? startPage! - pageOffset : null;
 
   ScoreModel copyWith({
     String? id,
@@ -60,6 +68,7 @@ class ScoreModel {
     int? startPage,
     int? endPage,
     String? realbookTitle,
+    int? pageOffset,
     bool? needsReview,
   }) =>
       ScoreModel(
@@ -75,6 +84,7 @@ class ScoreModel {
         startPage: startPage ?? this.startPage,
         endPage: endPage ?? this.endPage,
         realbookTitle: realbookTitle ?? this.realbookTitle,
+        pageOffset: pageOffset ?? this.pageOffset,
         needsReview: needsReview ?? this.needsReview,
       );
 

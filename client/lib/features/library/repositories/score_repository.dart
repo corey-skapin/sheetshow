@@ -35,7 +35,8 @@ class ScoreRepository {
     s.id, s.title, s.filename, s.local_file_path, s.total_pages,
     s.thumbnail_path, s.updated_at, s.realbook_id, s.start_page, s.end_page,
     s.needs_review,
-    (SELECT r.title FROM realbooks r WHERE r.id = s.realbook_id) AS realbook_title
+    (SELECT r.title FROM realbooks r WHERE r.id = s.realbook_id) AS realbook_title,
+    COALESCE((SELECT r.page_offset FROM realbooks r WHERE r.id = s.realbook_id), 0) AS page_offset
   ''';
 
   /// Reactive stream of all scores, including their effective tags.
@@ -341,6 +342,7 @@ class ScoreRepository {
       startPage: row.readNullable<int>('start_page'),
       endPage: row.readNullable<int>('end_page'),
       realbookTitle: row.readNullable<String>('realbook_title'),
+      pageOffset: row.read<int>('page_offset'),
       needsReview: row.read<bool>('needs_review'),
     );
   }
