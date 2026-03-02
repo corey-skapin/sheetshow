@@ -312,6 +312,12 @@ class RealbookIndexingService {
     int totalPages,
     int pageOffset,
   ) {
+    // Strip dot leaders (e.g. "Title.......42") before parsing —
+    // they appear in many realbook index layouts.
+    line = line
+        .replaceAll(RegExp(r'\.{2,}'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
     // Find all standalone numbers within the valid page range.
     final candidates = <({int number, int start, int end})>[];
     for (final m in _pageNumberCandidate.allMatches(line)) {
@@ -361,6 +367,7 @@ class RealbookIndexingService {
   static String _cleanIndexTitle(String title) {
     return title
         .replaceAll(RegExp(r'[|_~]'), '')
+        .replaceAll(RegExp(r'\.{2,}'), ' ') // collapse dot leaders
         .replaceAll(RegExp(r'\s+'), ' ')
         .replaceAll(RegExp(r'^[\s.,·…\-—]+'), '')
         .replaceAll(RegExp(r'[\s.,·…\-—]+$'), '')

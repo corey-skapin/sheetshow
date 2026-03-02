@@ -998,33 +998,47 @@ class _RealbookSidebar extends ConsumerWidget {
               ),
             ),
             ...realbooks.map(
-              (rb) => ListTile(
-                dense: true,
-                leading: const Icon(Icons.menu_book, size: 20),
-                title: Text(
-                  rb.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodySmall,
-                ),
-                subtitle: Text(
-                  '${rb.scoreCount} scores',
-                  style: AppTypography.labelSmall,
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.more_vert, size: 18),
-                  tooltip: 'Manage realbook',
-                  onPressed: () => showModalBottomSheet<void>(
-                    context: context,
-                    builder: (_) => RealbookDetailSheet(realbook: rb),
+              (rb) {
+                final isSelected = selectedRealbookId == rb.id;
+                return ListTile(
+                  dense: true,
+                  leading: Icon(Icons.menu_book,
+                      size: 20,
+                      color:
+                          isSelected ? colorScheme.onPrimaryContainer : null),
+                  title: Text(
+                    rb.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: isSelected ? colorScheme.onPrimaryContainer : null,
+                      fontWeight: isSelected ? FontWeight.w600 : null,
+                    ),
                   ),
-                ),
-                selected: selectedRealbookId == rb.id,
-                selectedTileColor: colorScheme.primaryContainer,
-                onTap: () => onRealbookSelected(
-                  selectedRealbookId == rb.id ? null : rb.id,
-                ),
-              ),
+                  subtitle: Text(
+                    '${rb.scoreCount} scores',
+                    style: AppTypography.labelSmall.copyWith(
+                      color: isSelected ? colorScheme.onPrimaryContainer : null,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: Icon(Icons.more_vert,
+                        size: 18,
+                        color:
+                            isSelected ? colorScheme.onPrimaryContainer : null),
+                    tooltip: 'Manage realbook',
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context,
+                      builder: (_) => RealbookDetailSheet(realbook: rb),
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedTileColor: colorScheme.primaryContainer,
+                  onTap: () => onRealbookSelected(
+                    isSelected ? null : rb.id,
+                  ),
+                );
+              },
             ),
           ],
         );

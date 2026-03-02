@@ -80,6 +80,8 @@ try
     // page where no word's bounding box overlaps. Using full word occupancy
     // (not just centers) prevents splitting inside a column where page numbers
     // sit far from their titles.
+    // Words that are purely dots/punctuation (dot leaders) are excluded from
+    // gap detection since they often span between columns in index layouts.
     double splitX = -1;
     {
         int bucketCount = 200;
@@ -87,6 +89,9 @@ try
         var occupied = new int[bucketCount];
         foreach (var w in words)
         {
+            // Skip dot leaders and pure punctuation — they span the gap.
+            if (w.text.All(c => c == '.' || c == ',' || c == ' ' || c == '\u2026'))
+                continue;
             int startB = Math.Max(0, (int)(w.x / bucketWidth));
             int endB = Math.Min(bucketCount - 1, (int)(w.xEnd / bucketWidth));
             for (int b = startB; b <= endB; b++)

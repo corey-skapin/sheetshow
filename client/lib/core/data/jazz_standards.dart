@@ -8,7 +8,7 @@ class JazzStandards {
   /// Find the best matching known title for an OCR'd string.
   /// Returns the known title if similarity >= [threshold] (0.0–1.0),
   /// otherwise returns null.
-  static String? fuzzyMatch(String ocrTitle, {double threshold = 0.65}) {
+  static String? fuzzyMatch(String ocrTitle, {double threshold = 0.70}) {
     if (ocrTitle.isEmpty) return null;
     final lower = ocrTitle.toLowerCase().trim();
     if (lower.isEmpty) return null;
@@ -20,6 +20,13 @@ class JazzStandards {
       final knownLower = known.toLowerCase();
       // Quick exact check.
       if (lower == knownLower) return known;
+
+      // Skip if lengths are too different — avoids false matches like
+      // "Sound Lee" → "Donna Lee" or short OCR fragments matching long titles.
+      final lenRatio = lower.length < knownLower.length
+          ? lower.length / knownLower.length
+          : knownLower.length / lower.length;
+      if (lenRatio < 0.5) continue;
 
       final score = _similarity(lower, knownLower);
       if (score > bestScore) {
@@ -317,6 +324,9 @@ class JazzStandards {
     "I Mean You",
     "I Remember Clifford",
     "I Should Care",
+    "If I Loved You",
+    "If I Should Lose You",
+    "If I Were A Bell",
     "I'll Remember April",
     "I'm All Smiles",
     "I'm Your Pal",
@@ -452,6 +462,7 @@ class JazzStandards {
     "Sadu",
     "Saint Thomas",
     "Samba De Orfeu",
+    "Sandu",
     "Satin Doll",
     "Scrapple From The Apple",
     "Search For Peace",
