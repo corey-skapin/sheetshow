@@ -92,8 +92,23 @@ try
             // Skip dot leaders and pure punctuation — they span the gap.
             if (w.text.All(c => c == '.' || c == ',' || c == ' ' || c == '\u2026'))
                 continue;
-            int startB = Math.Max(0, (int)(w.x / bucketWidth));
-            int endB = Math.Min(bucketCount - 1, (int)(w.xEnd / bucketWidth));
+
+            // Trim trailing/leading dots from text and shrink bounding box
+            // proportionally. Words like "Ablution...." have dots that extend
+            // into the column gap; we only want the actual text portion.
+            string trimmed = w.text.TrimEnd('.', ',', ' ', '\u2026')
+                                   .TrimStart('.', ',', ' ', '\u2026');
+            if (string.IsNullOrEmpty(trimmed)) continue;
+
+            double wordWidth = w.xEnd - w.x;
+            int totalChars = w.text.Length;
+            int leadingRemoved = w.text.Length - w.text.TrimStart('.', ',', ' ', '\u2026').Length;
+            double charWidth = totalChars > 0 ? wordWidth / totalChars : 0;
+            double effectiveX = w.x + leadingRemoved * charWidth;
+            double effectiveXEnd = effectiveX + trimmed.Length * charWidth;
+
+            int startB = Math.Max(0, (int)(effectiveX / bucketWidth));
+            int endB = Math.Min(bucketCount - 1, (int)(effectiveXEnd / bucketWidth));
             for (int b = startB; b <= endB; b++)
                 occupied[b]++;
         }
