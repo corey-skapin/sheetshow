@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:uuid/uuid.dart';
 import 'package:sheetshow/core/theme/app_spacing.dart';
+import 'package:sheetshow/features/library/models/realbook_model.dart';
 import 'package:sheetshow/features/library/models/score_model.dart';
+import 'package:sheetshow/features/library/repositories/realbook_repository.dart';
 import 'package:sheetshow/features/library/repositories/score_repository.dart';
 
 /// Dialog for reviewing and correcting realbook scores.
@@ -28,12 +31,26 @@ class ScoreReviewDialog extends ConsumerStatefulWidget {
   ConsumerState<ScoreReviewDialog> createState() => _ScoreReviewDialogState();
 }
 
+enum _ReviewTab { needsReview, all, unallocated }
+
+/// A range of consecutive unallocated book pages.
+class _PageGap {
+  const _PageGap(this.bookStart, this.bookEnd);
+  final int bookStart;
+  final int bookEnd;
+  int get length => bookEnd - bookStart + 1;
+  String get label =>
+      bookStart == bookEnd ? 'p.$bookStart' : 'pp.$bookStart–$bookEnd';
+}
+
 class _ScoreReviewDialogState extends ConsumerState<ScoreReviewDialog> {
   List<ScoreModel> _scores = [];
-  bool _showOnlyUnreviewed = true;
+  _ReviewTab _tab = _ReviewTab.needsReview;
   bool _loading = true;
   String? _selectedScoreId;
+  int? _selectedGapPage; // PDF page for gap preview
   PdfViewerController? _pdfController;
+  RealbookModel? _realbook;
 
   @override
   void initState() {
@@ -49,15 +66,18 @@ class _ScoreReviewDialogState extends ConsumerState<ScoreReviewDialog> {
 
   Future<void> _loadScores() async {
     final repo = ref.read(scoreRepositoryProvider);
+    final rbRepo = ref.read(realbookRepositoryProvider);
     final stream = repo.watchAll(realbookId: widget.realbookId);
     final scores = await stream.first;
     scores.sort((a, b) => (a.startPage ?? 0).compareTo(b.startPage ?? 0));
+    final realbook = await rbRepo.getById(widget.realbookId);
     if (mounted) {
       setState(() {
         _scores = scores;
+        _realbook = realbook;
         _loading = false;
         // Auto-select first unreviewed score.
-        if (_selectedScoreId == null) {
+        if (_selectedScoreId == null && _selectedGapPage == null) {
           final first = scores.where((s) => s.needsReview).firstOrNull;
           if (first != null) {
             _selectedScoreId = first.id;
@@ -78,13 +98,44 @@ class _ScoreReviewDialogState extends ConsumerState<ScoreReviewDialog> {
     }
   }
 
-  List<ScoreModel> get _filteredScores => _showOnlyUnreviewed
+  List<ScoreModel> get _filteredScores => _tab == _ReviewTab.needsReview
       ? _scores.where((s) => s.needsReview).toList()
       : _scores;
 
   int get _reviewCount => _scores.where((s) => s.needsReview).length;
 
-  String? get _pdfPath => _scores.firstOrNull?.localFilePath;
+  String? get _pdfPath =>
+      _realbook?.localFilePath ?? _scores.firstOrNull?.localFilePath;
+
+  /// Compute unallocated PDF page ranges (as book page gaps).
+  List<_PageGap> get _unallocatedPages {
+    final rb = _realbook;
+    if (rb == null) return [];
+    final allocated = <bool>[for (var i = 0; i <= rb.totalPages; i++) false];
+    for (final s in _scores) {
+      final start = s.startPage ?? 0;
+      final end = s.endPage ?? start;
+      for (var p = start; p <= end && p <= rb.totalPages; p++) {
+        if (p >= 1) allocated[p] = true;
+      }
+    }
+    // Build gap ranges (as book page numbers).
+    final gaps = <_PageGap>[];
+    int? gapStart;
+    for (var p = 1; p <= rb.totalPages; p++) {
+      if (!allocated[p]) {
+        gapStart ??= p;
+      } else if (gapStart != null) {
+        gaps.add(_PageGap(gapStart - rb.pageOffset, p - 1 - rb.pageOffset));
+        gapStart = null;
+      }
+    }
+    if (gapStart != null) {
+      gaps.add(
+          _PageGap(gapStart - rb.pageOffset, rb.totalPages - rb.pageOffset));
+    }
+    return gaps;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,83 +201,56 @@ class _ScoreReviewDialogState extends ConsumerState<ScoreReviewDialog> {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
               child: Row(
                 children: [
-                  SegmentedButton<bool>(
-                    segments: [
-                      ButtonSegment(
-                        value: true,
-                        label: Text('Needs review ($_reviewCount)'),
-                        icon: const Icon(Icons.warning_amber_rounded),
-                      ),
-                      ButtonSegment(
-                        value: false,
-                        label: Text('All (${_scores.length})'),
-                        icon: const Icon(Icons.list),
-                      ),
-                    ],
-                    selected: {_showOnlyUnreviewed},
-                    onSelectionChanged: (v) =>
-                        setState(() => _showOnlyUnreviewed = v.first),
+                  Expanded(
+                    child: SegmentedButton<_ReviewTab>(
+                      segments: [
+                        ButtonSegment(
+                          value: _ReviewTab.needsReview,
+                          label: Text('Review ($_reviewCount)'),
+                          icon: const Icon(Icons.warning_amber_rounded),
+                        ),
+                        ButtonSegment(
+                          value: _ReviewTab.all,
+                          label: Text('All (${_scores.length})'),
+                          icon: const Icon(Icons.list),
+                        ),
+                        ButtonSegment(
+                          value: _ReviewTab.unallocated,
+                          label: Text('Gaps (${_unallocatedPages.length})'),
+                          icon: const Icon(Icons.help_outline),
+                        ),
+                      ],
+                      selected: {_tab},
+                      onSelectionChanged: (v) => setState(() => _tab = v.first),
+                    ),
                   ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed:
-                        _reviewCount == 0 ? null : () => _confirmAll(filtered),
-                    icon: const Icon(Icons.done_all),
-                    label: const Text('Confirm all visible'),
-                  ),
+                  if (_tab != _ReviewTab.unallocated) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    TextButton.icon(
+                      onPressed: _reviewCount == 0
+                          ? null
+                          : () => _confirmAll(filtered),
+                      icon: const Icon(Icons.done_all),
+                      label: const Text('Confirm all'),
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
             const Divider(height: 1),
-            // Main content: score list + PDF preview
+            // Main content: left panel + PDF preview
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : Row(
                       children: [
-                        // Score list (left panel)
+                        // Left panel
                         SizedBox(
                           width: 480,
-                          child: filtered.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.check_circle_outline,
-                                        size: 48,
-                                        color: colorScheme.primary,
-                                      ),
-                                      const SizedBox(height: AppSpacing.md),
-                                      const Text(
-                                          'All scores have been reviewed!'),
-                                    ],
-                                  ),
-                                )
-                              : ListView.separated(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: AppSpacing.sm),
-                                  itemCount: filtered.length,
-                                  separatorBuilder: (_, __) =>
-                                      const Divider(height: 1),
-                                  itemBuilder: (context, index) {
-                                    final score = filtered[index];
-                                    return _ScoreReviewTile(
-                                      score: score,
-                                      isSelected: _selectedScoreId == score.id,
-                                      onTap: () {
-                                        setState(
-                                            () => _selectedScoreId = score.id);
-                                        _goToScore(score);
-                                      },
-                                      onSave: (title, startPage, endPage) =>
-                                          _saveScore(
-                                              score, title, startPage, endPage),
-                                      onConfirm: () => _confirmScore(score),
-                                    );
-                                  },
-                                ),
+                          child: _tab == _ReviewTab.unallocated
+                              ? _buildUnallocatedList(colorScheme)
+                              : _buildScoreList(filtered, colorScheme),
                         ),
                         const VerticalDivider(width: 1),
                         // PDF preview (right panel)
@@ -285,6 +309,209 @@ class _ScoreReviewDialogState extends ConsumerState<ScoreReviewDialog> {
     for (final score in scores.where((s) => s.needsReview)) {
       await repo.update(score.copyWith(needsReview: false));
     }
+    await _loadScores();
+  }
+
+  Widget _buildScoreList(List<ScoreModel> filtered, ColorScheme colorScheme) {
+    if (filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle_outline,
+                size: 48, color: colorScheme.primary),
+            const SizedBox(height: AppSpacing.md),
+            const Text('All scores have been reviewed!'),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      itemCount: filtered.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final score = filtered[index];
+        return _ScoreReviewTile(
+          score: score,
+          isSelected: _selectedScoreId == score.id,
+          onTap: () {
+            setState(() {
+              _selectedScoreId = score.id;
+              _selectedGapPage = null;
+            });
+            _goToScore(score);
+          },
+          onSave: (title, startPage, endPage) =>
+              _saveScore(score, title, startPage, endPage),
+          onConfirm: () => _confirmScore(score),
+        );
+      },
+    );
+  }
+
+  Widget _buildUnallocatedList(ColorScheme colorScheme) {
+    final gaps = _unallocatedPages;
+    if (gaps.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle_outline,
+                size: 48, color: colorScheme.primary),
+            const SizedBox(height: AppSpacing.md),
+            const Text('All pages are allocated!'),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      itemCount: gaps.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final gap = gaps[index];
+        final pdfPage = gap.bookStart + (_realbook?.pageOffset ?? 0);
+        final isSelected = _selectedGapPage == pdfPage;
+        return Material(
+          color: isSelected
+              ? colorScheme.primaryContainer.withOpacity(0.4)
+              : Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _selectedGapPage = pdfPage;
+                _selectedScoreId = null;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _pdfController?.goToPage(pageNumber: pdfPage);
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 72),
+                    height: 36,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      gap.label,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text(
+                      '${gap.length} unallocated '
+                      'page${gap.length > 1 ? 's' : ''}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  TextButton.icon(
+                    onPressed: () => _createScoreFromGap(gap),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('New score'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      textStyle: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  TextButton.icon(
+                    onPressed: () => _extendScoreWithGap(gap),
+                    icon: const Icon(Icons.merge_type, size: 16),
+                    label: const Text('Extend existing'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      textStyle: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _createScoreFromGap(_PageGap gap) async {
+    final rb = _realbook;
+    if (rb == null) return;
+    final repo = ref.read(scoreRepositoryProvider);
+    final scoreId = const Uuid().v4();
+    final score = ScoreModel(
+      id: scoreId,
+      title: 'Untitled (p.${gap.bookStart})',
+      filename: rb.filename,
+      localFilePath: rb.localFilePath,
+      totalPages: gap.length,
+      updatedAt: DateTime.now(),
+      realbookId: rb.id,
+      startPage: gap.bookStart + rb.pageOffset,
+      endPage: gap.bookEnd + rb.pageOffset,
+      realbookTitle: rb.title,
+      needsReview: true,
+    );
+    await repo.insert(score);
+    await _loadScores();
+    setState(() {
+      _selectedScoreId = scoreId;
+      _selectedGapPage = null;
+      _tab = _ReviewTab.needsReview;
+    });
+  }
+
+  Future<void> _extendScoreWithGap(_PageGap gap) async {
+    final rb = _realbook;
+    if (rb == null) return;
+    final pdfStart = gap.bookStart + rb.pageOffset;
+    final pdfEnd = gap.bookEnd + rb.pageOffset;
+    // Find scores adjacent to this gap.
+    final adjacent = _scores.where((s) {
+      final se = s.endPage ?? s.startPage ?? 0;
+      final ss = s.startPage ?? 0;
+      return se == pdfStart - 1 || ss == pdfEnd + 1;
+    }).toList();
+    if (adjacent.isEmpty) {
+      adjacent.addAll(_scores);
+    }
+    if (!mounted) return;
+    final chosen = await showDialog<ScoreModel>(
+      context: context,
+      builder: (ctx) => _ChooseScoreDialog(
+        scores: adjacent,
+        allScores: _scores,
+        pageOffset: rb.pageOffset,
+        gap: gap,
+      ),
+    );
+    if (chosen == null) return;
+    final repo = ref.read(scoreRepositoryProvider);
+    final newStart = (chosen.startPage ?? pdfStart) < pdfStart
+        ? chosen.startPage!
+        : pdfStart;
+    final newEnd =
+        (chosen.endPage ?? pdfEnd) > pdfEnd ? chosen.endPage! : pdfEnd;
+    await repo.update(chosen.copyWith(
+      startPage: newStart,
+      endPage: newEnd,
+      totalPages: newEnd - newStart + 1,
+    ));
     await _loadScores();
   }
 }
@@ -530,5 +757,90 @@ class _ScoreReviewTileState extends State<_ScoreReviewTile> {
         _editing = false;
       });
     }
+  }
+}
+
+// ─── Choose score dialog for extending ────────────────────────────────────────
+
+class _ChooseScoreDialog extends StatefulWidget {
+  const _ChooseScoreDialog({
+    required this.scores,
+    required this.allScores,
+    required this.pageOffset,
+    required this.gap,
+  });
+
+  final List<ScoreModel> scores;
+  final List<ScoreModel> allScores;
+  final int pageOffset;
+  final _PageGap gap;
+
+  @override
+  State<_ChooseScoreDialog> createState() => _ChooseScoreDialogState();
+}
+
+class _ChooseScoreDialogState extends State<_ChooseScoreDialog> {
+  bool _showAll = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scores = _showAll ? widget.allScores : widget.scores;
+    final isAdjacentView =
+        !_showAll && widget.scores.length < widget.allScores.length;
+
+    return AlertDialog(
+      title: Text('Extend which score with ${widget.gap.label}?'),
+      content: SizedBox(
+        width: 400,
+        height: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (isAdjacentView)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Row(
+                  children: [
+                    Text(
+                      'Showing adjacent scores',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => setState(() => _showAll = true),
+                      child: const Text('Show all'),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: scores.length,
+                itemBuilder: (ctx, i) {
+                  final s = scores[i];
+                  final bp = s.bookPage;
+                  final bep = s.bookEndPage;
+                  final range =
+                      bp == bep || bep == null ? 'p.$bp' : 'pp.$bp–$bep';
+                  return ListTile(
+                    dense: true,
+                    title: Text(s.title),
+                    subtitle: Text(range),
+                    onTap: () => Navigator.of(context).pop(s),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
   }
 }

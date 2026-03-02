@@ -109,9 +109,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
               child: TextField(
                 controller: _searchController,
-                decoration: const InputDecoration(
-                  hintText: 'Search scores…',
-                  prefixIcon: Icon(Icons.search),
+                decoration: InputDecoration(
+                  hintText: _selectedRealbookId != null
+                      ? 'Search by title or page…'
+                      : 'Search scores…',
+                  prefixIcon: const Icon(Icons.search),
                   isDense: true,
                 ),
                 onChanged: (value) => setState(() => _searchQuery = value),
@@ -188,7 +190,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ),
                 Expanded(
                   child: StreamBuilder<List<ScoreModel>>(
-                    stream: _searchQuery.trim().isNotEmpty
+                    stream: _searchQuery.trim().isNotEmpty &&
+                            _selectedRealbookId == null
                         ? searchService.searchStream(_searchQuery)
                         : scoreRepo.watchAll(
                             folderId: _selectedFolderId,
@@ -209,6 +212,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               .where((s) => _filterTags
                                   .every((t) => s.effectiveTags.contains(t)))
                               .toList();
+                      // When viewing a realbook and searching, also match page numbers.
+                      if (_searchQuery.trim().isNotEmpty &&
+                          _selectedRealbookId != null) {
+                        final q = _searchQuery.trim().toLowerCase();
+                        final pageNum = int.tryParse(q);
+                        scores = scores.where((s) {
+                          if (s.title.toLowerCase().contains(q)) return true;
+                          if (pageNum != null && s.bookPage != null) {
+                            final bp = s.bookPage!;
+                            final bep = s.bookEndPage ?? bp;
+                            if (pageNum >= bp && pageNum <= bep) return true;
+                          }
+                          return false;
+                        }).toList();
+                      }
                       if (_sortByPage && _selectedRealbookId != null) {
                         scores = [...scores]..sort((a, b) =>
                             (a.startPage ?? 0).compareTo(b.startPage ?? 0));
