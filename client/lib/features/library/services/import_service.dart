@@ -161,7 +161,14 @@ class ImportService {
       await doc.dispose();
       if (totalPages == 0) throw const InvalidPdfException();
     } catch (e) {
-      throw const InvalidPdfException();
+      debugPrint('ImportService: PdfDocument.openFile failed for '
+          '"$pdfPath": $e');
+      // Fallback: count pages by scanning the file for /Type /Page entries.
+      totalPages = await _countPagesFromBytes(sourceFile);
+      if (totalPages <= 0) {
+        throw const InvalidPdfException();
+      }
+      debugPrint('ImportService: Fallback page count: $totalPages');
     }
 
     final realbookId = const Uuid().v4();
@@ -350,7 +357,14 @@ class ImportService {
       await doc.dispose();
       if (totalPages == 0) throw const InvalidPdfException();
     } catch (e) {
-      throw const InvalidPdfException();
+      debugPrint('ImportService: PdfDocument.openFile failed for '
+          '"$sourcePath": $e');
+      final sourceFile = File(sourcePath);
+      totalPages = await _countPagesFromBytes(sourceFile);
+      if (totalPages <= 0) {
+        throw const InvalidPdfException();
+      }
+      debugPrint('ImportService: Fallback page count: $totalPages');
     }
 
     final scoreId = const Uuid().v4();
@@ -370,6 +384,52 @@ class ImportService {
     unawaited(thumbnailService.generateThumbnail(sourcePath, scoreId));
 
     return score;
+  }
+
+  /// Fallback page count: scan PDF bytes for page object markers.
+  /// Used when pdfium (pdfrx) can't open the file.
+  static Future<int> _countPagesFromBytes(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      // Search for /Type /Page entries (not /Type /Pages which is the
+      // page tree node). Uses ASCII-only matching on raw bytes.
+      final typeBytes = '/Type'.codeUnits;
+      final pageBytes = '/Page'.codeUnits;
+      int count = 0;
+      for (int i = 0; i < bytes.length - 12; i++) {
+        if (_bytesMatch(bytes, i, typeBytes)) {
+          // Skip whitespace after /Type
+          int j = i + typeBytes.length;
+          while (j < bytes.length &&
+              (bytes[j] == 32 ||
+                  bytes[j] == 10 ||
+                  bytes[j] == 13 ||
+                  bytes[j] == 9)) {
+            j++;
+          }
+          if (j < bytes.length - 5 && _bytesMatch(bytes, j, pageBytes)) {
+            // Make sure it's /Page and not /Pages
+            final afterPage = j + pageBytes.length;
+            if (afterPage < bytes.length && bytes[afterPage] != 0x73) {
+              // 0x73 = 's'
+              count++;
+            }
+          }
+        }
+      }
+      return count;
+    } catch (e) {
+      debugPrint('ImportService: _countPagesFromBytes failed: $e');
+      return 0;
+    }
+  }
+
+  static bool _bytesMatch(List<int> data, int offset, List<int> pattern) {
+    if (offset + pattern.length > data.length) return false;
+    for (int i = 0; i < pattern.length; i++) {
+      if (data[offset + i] != pattern[i]) return false;
+    }
+    return true;
   }
 }
 
