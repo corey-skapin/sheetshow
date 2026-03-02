@@ -53,7 +53,16 @@ class RealbookIndexingService {
     int pageOffset = 0,
     void Function(int current, int total)? onProgress,
   }) async {
-    final doc = await PdfDocument.openFile(pdfPath);
+    PdfDocument doc;
+    try {
+      doc = await PdfDocument.openFile(pdfPath);
+    } catch (e) {
+      debugPrint('RealbookIndexingService: PdfDocument.openFile failed: $e');
+      // pdfium can't open this PDF — try OCR-only fallback using the
+      // external OCR tool (which uses Windows.Data.Pdf, a different engine).
+      return _indexWithOcrOnly(pdfPath,
+          pageOffset: pageOffset, onProgress: onProgress);
+    }
     try {
       final totalPages = doc.pages.length;
       if (totalPages == 0) return [];
@@ -107,6 +116,177 @@ class RealbookIndexingService {
     } finally {
       await doc.dispose();
     }
+  }
+
+  /// Fallback indexing when pdfium can't open the PDF.
+  /// Uses only the external OCR tool (which relies on Windows.Data.Pdf)
+  /// to scan index pages and detect scores.
+  Future<List<IndexEntry>> _indexWithOcrOnly(
+    String pdfPath, {
+    int pageOffset = 0,
+    void Function(int current, int total)? onProgress,
+  }) async {
+    debugPrint('RealbookIndexingService: Using OCR-only fallback for $pdfPath');
+
+    // We need the total page count — use the byte-scan fallback from
+    // ImportService, or try to get it from the OCR tool's error output.
+    final file = File(pdfPath);
+    final bytes = await file.readAsBytes();
+    final typeBytes = '/Type'.codeUnits;
+    final pageBytes = '/Page'.codeUnits;
+    int totalPages = 0;
+    for (int i = 0; i < bytes.length - 12; i++) {
+      if (_bytesMatchFallback(bytes, i, typeBytes)) {
+        int j = i + typeBytes.length;
+        while (j < bytes.length &&
+            (bytes[j] == 32 ||
+                bytes[j] == 10 ||
+                bytes[j] == 13 ||
+                bytes[j] == 9)) {
+          j++;
+        }
+        if (j < bytes.length - 5 && _bytesMatchFallback(bytes, j, pageBytes)) {
+          final afterPage = j + pageBytes.length;
+          if (afterPage < bytes.length && bytes[afterPage] != 0x73) {
+            totalPages++;
+          }
+        }
+      }
+    }
+    if (totalPages == 0) return [];
+    debugPrint('RealbookIndexingService: OCR-only fallback, '
+        '$totalPages pages detected');
+
+    // Scan front and back pages for index content using OCR only.
+    final frontEnd = min(_maxIndexScanPages, totalPages);
+    final backStart = max(frontEnd, totalPages - _maxIndexScanPages);
+    final pagesToScan = <int>[
+      for (int i = 0; i < frontEnd; i++) i,
+      for (int i = backStart; i < totalPages; i++)
+        if (i >= frontEnd) i,
+    ];
+
+    final progressTotal = pagesToScan.length;
+    final allTocEntries = <_TitlePage>[];
+    int indexPageCount = 0;
+
+    final logFile =
+        File('${Directory.systemTemp.path}/sheetshow_index_log.txt');
+    final logSink = logFile.openWrite();
+    logSink.writeln('=== Realbook Index Scan (OCR-only fallback): '
+        '$totalPages pages ===');
+    logSink.writeln('Scanning pages: $pagesToScan');
+
+    for (int idx = 0; idx < pagesToScan.length; idx++) {
+      final pageIdx = pagesToScan[idx];
+      onProgress?.call(idx + 1, progressTotal);
+
+      // OCR the page directly (1-indexed).
+      final text = await _ocrPdfPage(pageIdx + 1, pdfPath, logSink) ?? '';
+
+      logSink.writeln('\n--- Page ${pageIdx + 1} (OCR-only) ---');
+      logSink.writeln(text.isEmpty ? '(empty)' : text);
+
+      if (text.trim().isEmpty) continue;
+
+      final lines = text.split('\n');
+      int matchCount = 0;
+      String orphan = '';
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) continue;
+
+        final input = orphan.isNotEmpty ? '$orphan $trimmed' : trimmed;
+        final pairs = _parseIndexLine(input, totalPages, pageOffset);
+        if (pairs.isEmpty) {
+          final cleaned = _cleanIndexTitle(trimmed);
+          if (cleaned.isNotEmpty && RegExp(r'[A-Za-z]').hasMatch(cleaned)) {
+            orphan = orphan.isNotEmpty ? '$orphan $cleaned' : cleaned;
+            if (orphan.length > 60) {
+              logSink.writeln('  ORPHAN: "$cleaned" (discarded — too long)');
+              orphan = '';
+            } else {
+              logSink.writeln('  ORPHAN: "$cleaned" (buffered for next line)');
+            }
+          }
+          continue;
+        }
+
+        orphan = '';
+        for (final pair in pairs) {
+          if (RegExp(r'^\d+$').hasMatch(pair.title)) continue;
+          logSink.writeln('  MATCH: "${pair.title}" -> PDF page ${pair.page}');
+          allTocEntries.add(pair);
+          matchCount++;
+        }
+      }
+
+      logSink.writeln('  => $matchCount matches on page ${pageIdx + 1}');
+      if (matchCount >= 3) indexPageCount++;
+    }
+
+    logSink.writeln('\n=== RESULT: ${allTocEntries.length} entries, '
+        '$indexPageCount index pages ===');
+    if (allTocEntries.length < _minIndexEntries || indexPageCount < 1) {
+      logSink.writeln('FAILED: Not enough entries (need >= $_minIndexEntries)');
+      await logSink.flush();
+      await logSink.close();
+      return [];
+    }
+
+    // Deduplicate.
+    final seen = <String>{};
+    final deduped = <_TitlePage>[];
+    final byPage = <int, _TitlePage>{};
+    for (final e in allTocEntries) {
+      final key = '${e.title.toLowerCase()}:${e.page}';
+      if (!seen.add(key)) continue;
+      final existing = byPage[e.page];
+      if (existing == null) {
+        byPage[e.page] = e;
+        deduped.add(e);
+      } else {
+        final existingScore = _titleQuality(existing.title);
+        final newScore = _titleQuality(e.title);
+        if (newScore > existingScore) {
+          deduped.remove(existing);
+          byPage[e.page] = e;
+          deduped.add(e);
+        }
+      }
+    }
+    deduped.sort((a, b) => a.page.compareTo(b.page));
+
+    // Normalize titles.
+    final normalized = deduped.map((e) {
+      var title =
+          e.title == e.title.toUpperCase() ? _toTitleCase(e.title) : e.title;
+      final match = JazzStandards.fuzzyMatch(title);
+      var matched = false;
+      if (match != null && match.toLowerCase() != title.toLowerCase()) {
+        logSink.writeln('  FUZZY: "$title" -> "$match"');
+        title = match;
+        matched = true;
+      } else if (match != null) {
+        matched = true;
+      }
+      return _TitlePage(title, e.page, matched: matched);
+    }).toList();
+
+    final entries = _titlePagesToEntries(normalized, totalPages);
+    // No gap-filling in OCR-only mode (needs PdfDocument for staff scanning).
+    final result = _addGapEntries(entries, totalPages);
+    await logSink.flush();
+    await logSink.close();
+    return result;
+  }
+
+  static bool _bytesMatchFallback(List<int> data, int offset, List<int> pat) {
+    if (offset + pat.length > data.length) return false;
+    for (int i = 0; i < pat.length; i++) {
+      if (data[offset + i] != pat[i]) return false;
+    }
+    return true;
   }
 
   // ─── Tier 1: Bookmarks ───────────────────────────────────────────────────
